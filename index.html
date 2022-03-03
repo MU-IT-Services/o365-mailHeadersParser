@@ -23,11 +23,32 @@
                             <h1 class="display-1">Office 365 Spam Report Parser</h1>
                         </div>
                         <div class="col-12">
-                            <h1>Input</h1>
+                            <h1>Extract Headers</h1>
                             <form action="javascript:void()" novalidate>
                                 <div class="form-floating mb-3">
-                                    <textarea id="spamReport-ta" class="form-control" style="height: 100px" required></textarea>
-                                    <label for="spamReport-ta"><code>X-Forefront-Antispam-Report</code> Header</label>
+                                    <textarea id="fullHeaders-ta" class="form-control" style="height: 500px"></textarea>
+                                    <label for="fullHeaders-ta">Full Mail Headers</label>
+                                </div>
+                                <div class="mb-3">
+                                    <button type="button" id="extract_btn"
+                                        class="form-control btn btn-primary">Extract</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-12">
+                            <h1>Parse Headers</h1>
+                            <form action="javascript:void()" novalidate>
+                                <div class="form-floating mb-3">
+                                    <textarea id="authResultsHeader-ta" class="form-control" style="height: 100px" required></textarea>
+                                    <label for="authResultsHeader-ta"><code>Authentication-results</code> Header</label>
+                                </div>
+                                <div class="form-floating mb-3">
+                                    <textarea id="forefrontSpamReport-ta" class="form-control" style="height: 100px" required></textarea>
+                                    <label for="forefrontSpamReport-ta"><code>X-Forefront-Antispam-Report</code> Header</label>
+                                </div>
+                                <div class="form-floating mb-3">
+                                    <textarea id="microsoftAntiSpamHeader-ta" class="form-control" style="height: 50px" required></textarea>
+                                    <label for="microsoftAntiSpamHeader-ta"><code>X-Microsoft-Antispam</code> Header</label>
                                 </div>
                                 <div class="mb-3">
                                     <button type="button" id="parse_btn"
