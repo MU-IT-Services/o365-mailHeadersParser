@@ -1,3 +1,48 @@
+// data
+
+/**
+ * A lookup of mail categorisation codes, mapping their abbreviations in the
+ * header to their meanings. These are the codes used in the `CAT` field of the
+ * `X-Forefront-Antispam-Report` header.
+ * 
+ * @type {object<string, string>}
+ */
+const MAIL_CATEGORISATION_CODES = {
+    BULK: 'bulk mail',
+    DIMP: 'domain impersonation',
+    GIMP: 'mailbox intelligence-derived assumed impersonation',
+    HPHSH: 'high-confidence phishing',
+    HPHISH: 'high-confidence phishing',
+    HSPM: 'high confidence spam',
+    MALW: 'malware',
+    PHSH: 'phishing',
+    SPM: 'spam',
+    SPOOF: 'spoofing',
+    UIMP: 'user impersonation',
+    AMP: 'anti-malware',
+    SAP: 'safe attachments',
+    OSPM: 'out-bound spam'
+};
+
+/**
+ * A lookup of the spam filter action codes. These are the codes used in the
+ * `SFV` field of the `X-Forefront-Antispam-Report` header.
+ * 
+ * @type {object<string, string>}
+ */
+const SPAM_FILTER_ACTION_CODES = {
+    BLK: 'marked as bulk mail',
+    NSPM: 'marked as not spam',
+    SFE: "scan skipped because sender on recipient's safe senders list",
+    SKA: 'scan skipped due to allow-list',
+    SKB: 'scan skipped due to block-list',
+    SKB: 'scan skipped because internal email',
+    SKN: 'scan skipped because marked as not-spam by mail rule',
+    SKQ: 'message released from quarantine',
+    SKS: 'scan skipped because already marked as spam by mail rule',
+    SPM: 'marked as spam'
+}
+
 // Document ready handler
 $.when( $.ready ).then(function() {
     const $parseBtn = $('button#parse_btn');
@@ -99,15 +144,37 @@ function parseSpamReportHeader(input){
         if(field === '') continue;
         const fieldMatch = field.match(/^(\w+):(.*)$/)
         if(fieldMatch){
-            header[fieldMatch[1]] = fieldMatch[2] ? fieldMatch[2] : true;
+            header[fieldMatch[1]] = fieldMatch[2];
         }else{
             console.debug('failed to parse field', field);
         }
     }
     console.log(header);
-    return {
-        senderCountryCode: header.CTRY || '',
-        senderIP: header.CIP || '',
-        spamScore: parseInt(header.SCL) || -1
+
+    // assemble the return value
+    const ans = {
+        messageCategorisation: MAIL_CATEGORISATION_CODES[header.CAT] ? MAIL_CATEGORISATION_CODES[header.CAT] : header.CAT,
+        sender: {
+            countryCode: header.CTRY || 'UNKNOWN',
+            smtpHeloString: header.H,
+            ip: header.CIP || '',
+            ipReputation: 'none',
+            ipReverseDNS: header.PTR
+        },
+        spamScore: parseInt(header.SCL) || -1,
+        spamFilterAction: SPAM_FILTER_ACTION_CODES[header.SFV] ? SPAM_FILTER_ACTION_CODES[header.SFV] : 'none',
+        spoofingDetected: 'none',
+        flaggedDueToUserComplaints: header.SRV == 'BULK' ? true : false
     };
+    if(header.IPV === 'CAL'){
+        ans.sender.ipReputation = 'allow-listed';
+    }else if(header.IPV === 'NLI'){
+        ans.sender.ipReputation = 'not on any reputation lists';
+    }
+    if(header.SFTY == '9.19'){
+        ans.spoofingDetected = 'user'
+    }else if(header.SFTY == '9.20'){
+        ans.spoofingDetected = 'domain'
+    }
+    return ans;
 }
