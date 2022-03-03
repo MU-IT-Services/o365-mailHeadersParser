@@ -109,7 +109,7 @@ $.when( $.ready ).then(function() {
                 }
             }else if(l.match(/^\s+/)){
                 // append the line to the current header
-                headers[currentHeader] += l.trim();
+                headers[currentHeader] += ' ' + l.trim();
             }else{
                 console.warn('failed to interpret header line', l);
             }
@@ -131,7 +131,9 @@ $.when( $.ready ).then(function() {
     // add an event handler to the parse button
     $parseBtn.click(()=>{
         const messageDetails = {
-            ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val()))
+            ...parseAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val())),
+            ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
+            ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
         };
         const $out = $('<pre>').text(JSON.stringify(messageDetails, null, 2));
         $('#output_div').empty().append($out);
@@ -316,6 +318,90 @@ function isValidMicrosoftAntiSpamHeader(input){
 }
 
 /**
+ * Parse an authentication results header.
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   compoundAuthentication: {
+ *     result: 'unknown'
+ *   }
+ *   dkim: {
+ *     result: 'unknown'
+ *   },
+ *   dmarc: {
+ *     result: 'unknown'
+ *   },
+ *   spf: {
+ *     result: 'unknown'
+ *   }
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+ function parseAuthResultHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+    if(!isValidAuthResultHeader(input)) throw new RangeError('must pass a sanitised header');
+
+    // initiaise the return value
+    const ans = {
+        compoundAuthentication: {
+            result: 'unknown'
+        },
+        dkim: {
+            result: 'unknown'
+        },
+        dmark: {
+            result: 'unknown'
+        },
+        spf: {
+            result: 'unknown'
+        }
+    };
+
+    // strip off the header name
+    let headerVal = input.replace(/^Authentication-Results:[ ]/, '');
+
+    // split the value on semi-colon to get the various parts
+    const headerParts = headerVal.trim().split(';');
+    console.log(headerParts);
+
+    // process each part
+    for(const headerPart of headerParts){
+        // get the part name and act appropriatey
+        const headerPartMatch = headerPart.match(/^(\w+)=(.*)$/);
+        if(headerPartMatch){
+            const partName = headerPartMatch[1];
+            const partValue = headerPartMatch[2];
+
+            switch(partName){
+                case 'compauth':
+                    // TO DO
+                    break;
+                case 'dkim':
+                    // TO DO
+                    break;
+                case 'dmark':
+                    // TO DO
+                    break;
+                case 'spf':
+                    // TO DO
+                    break;
+                default:
+                    console.debug('unexpected header part name', partName, headerPart);        
+            }
+        }else{
+            console.debug('failed to parse authentiation result header part', headerPart);
+        }
+    }
+    
+    //return the result
+    return ans;
+}
+
+/**
  * Parse a sanitised Office365 Forefront Span Report Header.
  * 
  * @see sanitiseMailHeader
@@ -323,8 +409,18 @@ function isValidMicrosoftAntiSpamHeader(input){
  * @returns {object} Returns a plain object of the form:
  * ```
  * {
- *   senderIP: '1.1.1.1', // the IP address of the sender (CIP)
- *   spamScore: 0, // the numeric spam score (SCL)
+ *   messageCategorisation: 'NONE',
+ *   sender: {
+ *     countryCode: 'DE',
+ *     smtpHeloString: 'some.fqdn',
+ *     ip: '1.2.3.4',
+ *     ipReputation: 'none',
+ *     ipReverseDNS: 'some.fqdn'
+ *   },
+ *   spamScore: 1,
+ *   spamFilterAction: 'none',
+ *   spoofingDetected: 'none',
+ *   flaggedDueToUserComplaints: false
  * }
  * ```
  * @throws {TypeError} A Type Error is thrown if a string is not passed.
@@ -377,4 +473,28 @@ function parseForefrontSpamReportHeader(input){
         ans.spoofingDetected = 'domain'
     }
     return ans;
+}
+
+/**
+ * Parse a Microsoft Anti-Spam header.
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   bulkMailScore: 1
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+function parseMicrosoftAntiSpamHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+    if(!isValidMicrosoftAntiSpamHeader(input)) throw new RangeError('must pass a sanitised header');
+
+    // extract the BCL and return
+    const bclMatch = input.match(/BCL:(\d+)/);
+    return {
+        bulkMailScore: bclMatch ? parseInt(bclMatch[1]) : -1
+    };
 }
