@@ -10,56 +10,90 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
 
-    <title>Office365 Spam Report Parser</title>
+    <title>Office365 Mail Header Parser</title>
 </head>
 
 <body>
     <div class="container">
         <div class="row">
-            <div class="col-12 col-sm-10 offset-sm-1 col-md-8 offset-md-2 col-lg-6 offset-lg-3">
+            <div class="col-12">
                 <div class="container border my-3">
                     <div class="row">
                         <div class="col-12">
-                            <h1 class="display-1">Office 365 Spam Report Parser</h1>
+                            <h1 class="display-1">Office 365 Mail Header Parser</h1>
+                            <p>This page finds, parses, and extracts meaning from the following Office365 spam/malware-related mail headers:</p>
+                            <ul>
+                                <li><code>Authentication-results</code></li>
+                                <li><code>X-Forefront-Antispam-Report</code></li>
+                                <li><code>X-Microsoft-Antispam</code></li>
+                            </ul>
+                            <p>The parsing on this page is based on Microsoft's <a href="https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/anti-spam-message-headers?view=o365-worldwide" target="_blank" rel=nofollow>Anti-spam message headers in Microsoft 365</a>. document</p>
                         </div>
+                    </div>
+                    <div class="row">
                         <div class="col-12">
-                            <h1>Extract Headers</h1>
-                            <form action="javascript:void()" novalidate>
-                                <div class="form-floating mb-3">
-                                    <textarea id="fullHeaders-ta" class="form-control" style="height: 500px"></textarea>
-                                    <label for="fullHeaders-ta">Full Mail Headers</label>
+                            <div class="card mb-3">
+                                <div class="card-header h3">
+                                    Step 1 — Extract Headers (Optoinal)
                                 </div>
-                                <div class="mb-3">
-                                    <button type="button" id="extract_btn"
-                                        class="form-control btn btn-primary">Extract</button>
+                                <div class="card-body">
+                                    <p class="card-text">Paste raw headers or the full message source into the text box below to extract the spam/malare-related headers and populate them into steps 2.</p>
+                                    <form action="javascript:void()" novalidate>
+                                        <div class="form-floating mb-3">
+                                            <textarea id="fullHeaders-ta" class="form-control" style="height: 500px"></textarea>
+                                            <label for="fullHeaders-ta">Full Mail Headers</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <button type="button" id="extract_btn"
+                                                class="form-control btn btn-primary">Extract</button>
+                                        </div>
+                                    </form>
                                 </div>
-                            </form>
-                        </div>
-                        <div class="col-12">
-                            <h1>Parse Headers</h1>
-                            <form action="javascript:void()" novalidate>
-                                <div class="form-floating mb-3">
-                                    <textarea id="authResultsHeader-ta" class="form-control" style="height: 100px" required></textarea>
-                                    <label for="authResultsHeader-ta"><code>Authentication-results</code> Header</label>
-                                </div>
-                                <div class="form-floating mb-3">
-                                    <textarea id="forefrontSpamReport-ta" class="form-control" style="height: 100px" required></textarea>
-                                    <label for="forefrontSpamReport-ta"><code>X-Forefront-Antispam-Report</code> Header</label>
-                                </div>
-                                <div class="form-floating mb-3">
-                                    <textarea id="microsoftAntiSpamHeader-ta" class="form-control" style="height: 50px" required></textarea>
-                                    <label for="microsoftAntiSpamHeader-ta"><code>X-Microsoft-Antispam</code> Header</label>
-                                </div>
-                                <div class="mb-3">
-                                    <button type="button" id="parse_btn"
-                                        class="form-control btn btn-primary">Parse</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="col-12">
-                            <h1>Output</h1>
-                            <div id="output_div">
                             </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card mb-3">
+                                <div class="card-header bg-primary text-white h3">
+                                    Step 2 — Parse Headers
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">Paste the relevant headers into the text boxes below, or use step 1 to extract them for you.</p>
+                                    <form action="javascript:void()" novalidate>
+                                        <div class="form-floating mb-3">
+                                            <textarea id="authResultsHeader-ta" class="form-control" style="height: 100px" required></textarea>
+                                            <label for="authResultsHeader-ta"><code>Authentication-results</code> Header</label>
+                                        </div>
+                                        <div class="form-floating mb-3">
+                                            <textarea id="forefrontSpamReport-ta" class="form-control" style="height: 100px" required></textarea>
+                                            <label for="forefrontSpamReport-ta"><code>X-Forefront-Antispam-Report</code> Header</label>
+                                        </div>
+                                        <div class="form-floating mb-3">
+                                            <textarea id="microsoftAntiSpamHeader-ta" class="form-control" style="height: 50px" required></textarea>
+                                            <label for="microsoftAntiSpamHeader-ta"><code>X-Microsoft-Antispam</code> Header</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <button type="button" id="parse_btn"
+                                                class="form-control btn btn-primary">Parse</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="card mb-3">
+                                <div class="card-header h3 bg-success text-white">
+                                    Output  
+                                </div>
+                                <div class="card-body">
+                                    <div id="output_div"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 text-muted">
+                            <p>This page was created by <a href="https://www.maynoothuniversity.ie/people/bart-busschots" target="_blank" rel="nofollow">Bart Busschots</a> in <a href="https://www.maynoothuniversity.ie/it-services" target="_blank" rel="nofollow">IT Services</a> in <a href="https://mu.ie/" target="_blank" rel="nofollow">Maynooth University</a> and is released under the <a href="./LICENSE" target="_blank">MIT License</a>.</p>
+                            <p>This page was created to <em>scratch our own itch</em>, if you find it useful, great, if not, so be it, we will not be dedicating resouces to making this tool fit other people's needs. But, if you have the skills to adapt it for you own needs, please do, hence the very permissive license.</p>
                         </div>
                     </div>
                 </div>
