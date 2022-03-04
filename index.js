@@ -135,7 +135,7 @@ $.when( $.ready ).then(function() {
             ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
             ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
         };
-        const $out = $('<pre>').text(JSON.stringify(messageDetails, null, 2));
+        const $out = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(messageDetails, {}));
         $('#output_div').empty().append($out);
     });
 
