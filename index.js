@@ -318,6 +318,56 @@ function isValidMicrosoftAntiSpamHeader(input){
 }
 
 /**
+ * Convert a compauth reason code into a meaning.
+ * 
+ * If invalid arguments are passed the string `'INVALID CODE'` and the code are returned.
+ * 
+ * @param {(string|number)} code - a three-digit number as a string or number.
+ * @returns {string}
+ */
+function compoundAuthenticationReason(code){
+    code = String(code); // force the code to a string
+
+    // validate the code
+    const codeMatch = code.match(/^(\d)(\d\d)$/);
+    if(!codeMatch) return `INVALID CODE: ${code}`
+    const leadingDigit = codeMatch[1];
+    const trailingDigits = codeMatch[2];
+
+    // try find a real answer
+    switch(leadingDigit){
+        case '0':
+            switch(trailingDigits){
+                case '00':
+                    return 'explicit failure - sending domain published DMARC/DKIM/SPF records';
+                case '01':
+                    return 'implicit failure - sending domain published no DMARC/DKIM/SPF records, or non-enforcing records';
+                case '02':
+                    return 'enforced failure - mail rule in place to enforce DMARC/DKIM/SPF even if the records are non-enforcing';
+                case '10':
+                    return 'exempted failure - the message failed DMARC but the domain is on the allow-list';
+            }
+            return 'generic failure';
+            break;
+        case '1':
+        case '7':
+            return 'explicit pass';
+        case '2':
+            return 'implicit pass';
+        case '3':
+            return 'not checked';
+        case '4':
+        case '9':
+            return 'skipped';
+        case '6':
+            'exempted failure - the message failed compauth, but the domain is on the allow-list';
+    }
+
+    // if all else fails, return unknown
+    return `UNKNOWN CODE: ${code}`;
+}
+
+/**
  * Parse an authentication results header.
  * 
  * @param {string} input 
@@ -348,16 +398,22 @@ function isValidMicrosoftAntiSpamHeader(input){
     // initiaise the return value
     const ans = {
         compoundAuthentication: {
-            result: 'unknown'
+            result: 'unknown',
+            reasonCode: '000',
+            reasonMeaning: 'UNKNOWN'
         },
         dkim: {
-            result: 'unknown'
+            result: 'unknown',
+            details: 'no additional info'
         },
-        dmark: {
-            result: 'unknown'
+        dmarc: {
+            result: 'unknown',
+            action: 'unknown',
+            details: 'no additional info'
         },
         spf: {
-            result: 'unknown'
+            result: 'unknown',
+            details: 'no additional info'
         }
     };
 
@@ -365,29 +421,60 @@ function isValidMicrosoftAntiSpamHeader(input){
     let headerVal = input.replace(/^Authentication-Results:[ ]/, '');
 
     // split the value on semi-colon to get the various parts
-    const headerParts = headerVal.trim().split(';');
-    console.log(headerParts);
+    const headerParts = headerVal.trim().split(/;[ ]?/);
+    console.log(headerVal, headerParts);
 
     // process each part
     for(const headerPart of headerParts){
         // get the part name and act appropriatey
-        const headerPartMatch = headerPart.match(/^(\w+)=(.*)$/);
+        const headerPartMatch = headerPart.match(/^(\w+)=(\w+)[ ]?(.*)$/);
         if(headerPartMatch){
             const partName = headerPartMatch[1];
-            const partValue = headerPartMatch[2];
+            const partOutcome = headerPartMatch[2];
+            let partDetails = headerPartMatch[3];
 
+            console.log(partName, partOutcome, partDetails);
             switch(partName){
                 case 'compauth':
-                    // TO DO
+                    // store the overall result and details
+                    ans.compoundAuthentication.result = partOutcome;
+                    ans.compoundAuthentication.details = headerPart;
+
+                    // parse the remainder of the entry
+                    const reasonMatch = partDetails.match(/\breason=(\d{3})\b/);
+                    if(reasonMatch){
+                        const reasonCode = reasonMatch[1];
+                        ans.compoundAuthentication.reasonCode = reasonCode;
+                        ans.compoundAuthentication.reasonMeaning = compoundAuthenticationReason(reasonCode);
+
+                    }else{
+                        console.warn('failed to parse compound authentication reason');
+                    }
+                    break;
+                case 'dmarc':
+                    // store the overall result
+                    ans.dmarc.result = partOutcome;
+
+                    // parse the action
+                    const dmarcActionMatch = partDetails.match(/\baction=([\w\d]+)\b/);
+                    if(dmarcActionMatch){
+                        ans.dmarc.action = dmarcActionMatch[1];
+                    }else{
+                        console.warn('failed to parse dmarc details', partDetails);
+                    }
+                    ans.dmarc.details = headerPart;
                     break;
                 case 'dkim':
-                    // TO DO
-                    break;
-                case 'dmark':
-                    // TO DO
-                    break;
                 case 'spf':
-                    // TO DO
+                    // store the overall result
+                    ans[partName].result = partOutcome;
+
+                    // strip any brackets that completely wrap the description
+                    partDetails = partDetails.trim().replace(/^[(](.+)[)]$/, '$1');
+
+                    // store the details
+                    if(partDetails) ans[partName].details = partDetails;
+
                     break;
                 default:
                     console.debug('unexpected header part name', partName, headerPart);        
