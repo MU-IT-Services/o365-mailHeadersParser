@@ -53,7 +53,7 @@ $.when( $.ready ).then(function() {
     const $parseBtn = $('button#parse_btn');
 
     // local function to validate the headers form
-    const validateHeadersFn = ()=>{validateHeaderForm($authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA)};
+    const validateHeadersFn = ()=>{ validateHeaderForm($authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA) };
 
     // add form validatoin to the header extraction form
     $fullHeadersTA.on('input', ()=>{
@@ -116,10 +116,10 @@ $.when( $.ready ).then(function() {
         }
 
         // populate the relevant text areas and validate the form
-        $authResultsHeaderTA.val('Authentication-Results: ' + headers['Authentication-Results']);
-        $forefrontSpamReportTA.val('X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report']);
-        $microsoftAntiSpamHeaderTA.val('X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam']);
-        validateHeadersFn();
+        $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
+        $forefrontSpamReportTA.val(headers['X-Forefront-Antispam-Report'] ? 'X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report'] : '');
+        $microsoftAntiSpamHeaderTA.val(headers['X-Microsoft-Antispam'] ? 'X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam'] : '');
+        if(validateHeadersFn()) $parseBtn.focus();
     });
 
     // add form validation to the header text areas
@@ -138,6 +138,9 @@ $.when( $.ready ).then(function() {
         const $out = $('<pre>').text(JSON.stringify(messageDetails, null, 2));
         $('#output_div').empty().append($out);
     });
+
+    // focus the full headers field
+    $fullHeadersTA.focus();
 });
 
 /**
@@ -161,37 +164,41 @@ $.when( $.ready ).then(function() {
     }
 
     // validate each text area
-    let allOK = true;
+    let numError = 0;
+    let numOK = 0;
     if(isValidAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val()))){
         $authResultsHeaderTA.removeClass('is-invalid').addClass('is-valid');
+        numOK++;
     }else{
         $authResultsHeaderTA.removeClass('is-valid');
         if($authResultsHeaderTA.val() !== ''){
             $authResultsHeaderTA.addClass('is-invalid');
+            numError++;
         }
-        allOK = false;
     }
     if(isValidForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val()))){
         $forefrontSpamReportTA.removeClass('is-invalid').addClass('is-valid');
+        numOK++;
     }else{
         $forefrontSpamReportTA.removeClass('is-valid');
         if($forefrontSpamReportTA.val() !== ''){
             $forefrontSpamReportTA.addClass('is-invalid');
+            numError++;
         }
-        allOK = false;
     }
     if(isValidMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))){
         $microsoftAntiSpamHeaderTA.removeClass('is-invalid').addClass('is-valid');
+        numOK++;
     }else{
         $microsoftAntiSpamHeaderTA.removeClass('is-valid');
         if($microsoftAntiSpamHeaderTA.val() !== ''){
             $microsoftAntiSpamHeaderTA.addClass('is-invalid');
+            numError++;
         }
-        allOK = false;
     }
     
-    // if none failed, enable the form and return true
-    if(allOK){
+    // if none failed and there is at least one valid, enable the form and return true
+    if(numError === 0 && numOK > 0){
         $authResultsHeaderTA.closest('form').find('button').prop('disabled', false);
         return true;
     }
@@ -375,16 +382,22 @@ function compoundAuthenticationReason(code){
  * ```
  * {
  *   compoundAuthentication: {
- *     result: 'unknown'
- *   }
+ *     result: 'unknown',
+ *     reasonCode: '000',
+ *     reasonMeaning: 'UNKNOWN'
+ *   },
  *   dkim: {
- *     result: 'unknown'
+ *     result: 'unknown',
+ *     details: 'no additional info'
  *   },
  *   dmarc: {
- *     result: 'unknown'
+ *     result: 'unknown',
+ *     action: 'unknown',
+ *     details: 'no additional info'
  *   },
  *   spf: {
- *     result: 'unknown'
+ *     result: 'unknown',
+ *     details: 'no additional info'
  *   }
  * }
  * ```
@@ -393,6 +406,7 @@ function compoundAuthenticationReason(code){
  */
  function parseAuthResultHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
+    if(input === '') return {};
     if(!isValidAuthResultHeader(input)) throw new RangeError('must pass a sanitised header');
 
     // initiaise the return value
@@ -422,7 +436,6 @@ function compoundAuthenticationReason(code){
 
     // split the value on semi-colon to get the various parts
     const headerParts = headerVal.trim().split(/;[ ]?/);
-    console.log(headerVal, headerParts);
 
     // process each part
     for(const headerPart of headerParts){
@@ -433,7 +446,6 @@ function compoundAuthenticationReason(code){
             const partOutcome = headerPartMatch[2];
             let partDetails = headerPartMatch[3];
 
-            console.log(partName, partOutcome, partDetails);
             switch(partName){
                 case 'compauth':
                     // store the overall result and details
@@ -515,6 +527,7 @@ function compoundAuthenticationReason(code){
  */
 function parseForefrontSpamReportHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
+    if(input === '') return {};
     if(!isValidForefrontSpamReportHeader(input)) throw new RangeError('must pass a sanitised header');
 
     // strip off the header name
@@ -532,7 +545,6 @@ function parseForefrontSpamReportHeader(input){
             console.debug('failed to parse field', field);
         }
     }
-    console.log(header);
 
     // assemble the return value
     const ans = {
@@ -577,6 +589,7 @@ function parseForefrontSpamReportHeader(input){
  */
 function parseMicrosoftAntiSpamHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
+    if(input === '') return {};
     if(!isValidMicrosoftAntiSpamHeader(input)) throw new RangeError('must pass a sanitised header');
 
     // extract the BCL and return
