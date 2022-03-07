@@ -2,4 +2,4 @@
 
 A simple tool for parsing the Office365 mail headers related to sender validation, bulk mail, and malware.
 
-You can use the tool directly form GitHub at TO DO.
+You can use this tool directly form GitHub at [https://mu-it-services.github.io/o365-mailHeadersParser/](https://mu-it-services.github.io/o365-mailHeadersParser/).
