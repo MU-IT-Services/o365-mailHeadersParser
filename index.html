@@ -9,6 +9,9 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
 
     <!-- Import PrettyJSON -->
     <link rel=stylesheet href=https://cdn.jsdelivr.net/npm/pretty-print-json@1.2/dist/pretty-print-json.css>
@@ -30,17 +33,17 @@
                                 <li><code>X-Forefront-Antispam-Report</code></li>
                                 <li><code>X-Microsoft-Antispam</code></li>
                             </ul>
-                            <p>The parsing on this page is based on Microsoft's <a href="https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/anti-spam-message-headers?view=o365-worldwide" target="_blank" rel=nofollow>Anti-spam message headers in Microsoft 365</a>. document</p>
+                            <p>The parsing on this page is based on Microsoft's <a href="https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/anti-spam-message-headers?view=o365-worldwide" target="_blank" rel=nofollow>Anti-spam message headers in Microsoft 365</a> document.</p>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-12 col-lg-6">
                             <div class="card mb-3">
                                 <div class="card-header h3">
-                                    Step 1 — Extract Headers (Optoinal)
+                                    Step 1 — Extract Headers (Optional)
                                 </div>
                                 <div class="card-body">
-                                    <p class="card-text">Paste raw headers or the full message source into the text box below to extract the spam/malare-related headers and populate them into steps 2.</p>
+                                    <p class="card-text">Paste raw headers or the full message source into the text box below to extract the spam/malware-related headers and populate them into <em>Steps 2</em>.</p>
                                     <form action="javascript:void()" novalidate>
                                         <div class="form-floating mb-3">
                                             <textarea id="fullHeaders-ta" class="form-control" style="height: 500px"></textarea>
@@ -60,7 +63,7 @@
                                     Step 2 — Parse Headers
                                 </div>
                                 <div class="card-body">
-                                    <p class="card-text">Paste the relevant headers into the text boxes below, or use step 1 to extract them for you.</p>
+                                    <p class="card-text">Paste the relevant headers into the text boxes below, or use <em>Step 1</em> to extract them for you.</p>
                                     <form action="javascript:void()" novalidate>
                                         <div class="form-floating mb-3">
                                             <textarea id="authResultsHeader-ta" class="form-control" style="height: 100px" required></textarea>
@@ -88,15 +91,21 @@
                                     Output  
                                 </div>
                                 <div class="card-body">
-                                    <div id="output_div"></div>
+                                    <div id="output_div">
+                                        <div class="alert alert-warning">
+                                            <strong><i class="bi bi-exclamation-circle"></i> No headers parsed yet</strong> — use <em>Step 2</em> above to enter the headers directly, or paste the raw headers (or even the entire message source) into <em>Step 1</em> to automatically find the relevant headers and extract them into <em>Step 2</em> for you.
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-12 text-muted">
-                            <p>This page was created by <a href="https://www.maynoothuniversity.ie/people/bart-busschots" target="_blank" rel="nofollow">Bart Busschots</a> in <a href="https://www.maynoothuniversity.ie/it-services" target="_blank" rel="nofollow">IT Services</a> in <a href="https://mu.ie/" target="_blank" rel="nofollow">Maynooth University</a> and is released under the <a href="./LICENSE" target="_blank">MIT License</a>.</p>
-                            <p>This page was created to <em>scratch our own itch</em>, if you find it useful, great, if not, so be it, we will not be dedicating resouces to making this tool fit other people's needs. But, if you have the skills to adapt it for you own needs, please do, hence the very permissive license.</p>
+                            <div class="alert alert-info">
+                                <p><i class="bi bi-info-circle"></i> This page was created by <a href="https://www.maynoothuniversity.ie/people/bart-busschots" target="_blank" rel="nofollow">Bart Busschots</a> from <a href="https://www.maynoothuniversity.ie/it-services" target="_blank" rel="nofollow">IT Services</a> in <a href="https://mu.ie/" target="_blank" rel="nofollow">Maynooth University</a> and is released under the <a href="./LICENSE" target="_blank">MIT License</a>.</p>
+                                <p>We built this page to <em>scratch our own itch</em>, if you find it useful, great, if not, so be it. MU IT Services we will not be dedicating resources to making this tool fit other people's needs. But, if you have the skills to adapt it for you own needs, please do, hence the very permissive license.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -119,5 +128,4 @@
     <!-- Import our JS -->
     <script src="./index.js"></script>
 </body>
-
 </html>
