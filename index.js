@@ -46,28 +46,22 @@ const SPAM_FILTER_ACTION_CODES = {
 // Document ready handler
 $.when( $.ready ).then(function() {
     const $fullHeadersTA = $('#fullHeaders-ta');
+    const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
     const $extractBtn = $('button#extract_btn');
     const $authResultsHeaderTA = $('#authResultsHeader-ta');
     const $forefrontSpamReportTA = $('#forefrontSpamReport-ta');
     const $microsoftAntiSpamHeaderTA = $('#microsoftAntiSpamHeader-ta');
     const $parseBtn = $('button#parse_btn');
+    const $additionalHeadersDiv = $('#additionalHeaders-div');
 
-    // local function to validate the headers form
+    // local functions to validate the two forms
+    const validateExtractFn = ()=>{ validateExtractForm($fullHeadersTA, $customHeadersPrefixTB) };
     const validateHeadersFn = ()=>{ validateHeaderForm($authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA) };
 
-    // add form validatoin to the header extraction form
-    $fullHeadersTA.on('input', ()=>{
-        if($fullHeadersTA.val().match(/\w/)){
-            $fullHeadersTA.removeClass('is-invalid').addClass('is-valid');
-            $extractBtn.prop('disabled', false);
-        }else if($fullHeadersTA.val() === ''){
-            $fullHeadersTA.removeClass('is-invalid', 'is-valid');
-            $extractBtn.prop('disabled', true);
-        }else{
-            $fullHeadersTA.removeClass('is-valid').addClass('is-invalid');
-            $extractBtn.prop('disabled', true);
-        }
-    }).trigger('input');
+    // add form validation to the header extraction form
+    $fullHeadersTA.on('input', validateExtractFn);
+    $customHeadersPrefixTB.on('input', validateExtractFn);
+    validateExtractFn();
 
     // add an event handler to the extract button
     $extractBtn.click(()=>{
@@ -120,6 +114,25 @@ $.when( $.ready ).then(function() {
         $forefrontSpamReportTA.val(headers['X-Forefront-Antispam-Report'] ? 'X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report'] : '');
         $microsoftAntiSpamHeaderTA.val(headers['X-Microsoft-Antispam'] ? 'X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam'] : '');
         if(validateHeadersFn()) $parseBtn.focus();
+
+        // blank the additional headers alert and collect the appropriate headers
+        const additionalHeaders = {};
+        $additionalHeadersDiv.empty();
+
+        // if there's a custom header prefix, match any headers and update the alert
+        let customPrefix = $customHeadersPrefixTB.val();
+        if(customPrefix.length > 0){
+            for(const header of Object.keys(headers).sort()){
+                if(header.startsWith(customPrefix)){
+                    additionalHeaders[header] = headers[header];
+                }
+            }
+        }else{
+            $additionalHeadersDiv.append($('<p>').text('No matching custom headers found').addClass('text-muted'));
+        }
+
+        // add the additional headers
+        $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
     });
 
     // add form validation to the header text areas
@@ -142,6 +155,54 @@ $.when( $.ready ).then(function() {
     // focus the full headers field
     $fullHeadersTA.focus();
 });
+
+/**
+ * Validate the header extraction form.
+ * 
+ * @param {jQuery} $fullHeadersTA - a jQuery object representing the
+ * full headers text area.
+ * @param {jQuery} $customHeadersPrefixTB - a jQuery object representing the
+ * optional custom header prefix.
+ * @return {boolean}
+ */
+ function validateExtractForm($fullHeadersTA, $customHeadersPrefixTB){
+    // make sure we were passed two jQuery objects
+    for(const $textInput of [$fullHeadersTA, $customHeadersPrefixTB]){
+        if(!$textInput instanceof $){
+            console.warn('extraction form validation must be passed two jQuery objects');
+            return false;
+        }
+    }
+
+    // validate each input
+    let numError = 0;
+    let numMissingRequired = 0;
+    if($fullHeadersTA.val().match(/\w/)){
+        $fullHeadersTA.removeClass('is-invalid').addClass('is-valid');
+    }else{
+        numMissingRequired++;
+        $fullHeadersTA.removeClass('is-valid');
+        if($fullHeadersTA.val() !== ''){
+            $fullHeadersTA.addClass('is-invalid');
+            numError++;
+        }
+    }
+    if($customHeadersPrefixTB.val().length > 0){
+        $customHeadersPrefixTB.addClass('is-valid');
+    }else{
+        $customHeadersPrefixTB.removeClass('is-valid');
+    }
+    
+    // if we've no errors and no missing required fields, enable the button
+    if(numError === 0 && numMissingRequired === 0){
+        $fullHeadersTA.closest('form').find('button').prop('disabled', false);
+        return true;
+    }
+
+    // default to disabling and return false
+    $fullHeadersTA.closest('form').find('button').prop('disabled', true);
+    return false;
+}
 
 /**
  * Validate the forefront spam report header input box.

@@ -50,6 +50,13 @@
                                             <label for="fullHeaders-ta">Full Mail Headers</label>
                                         </div>
                                         <div class="mb-3">
+                                            <div class="form-floating">
+                                                <input type="text" id="customHeadersPrefix-tb" class="form-control" value="X-MU-">
+                                                <label for="customHeadersPrefix-tb">Custom Headers Prefix</label>
+                                            </div>
+                                            <div class="form-text">Optionally extract custom mail headers starting with this prefix.</div>
+                                        </div>
+                                        <div class="mb-3">
                                             <button type="button" id="extract_btn"
                                                 class="form-control btn btn-primary">Extract</button>
                                         </div>
@@ -80,6 +87,12 @@
                                         <div class="mb-3">
                                             <button type="button" id="parse_btn"
                                                 class="form-control btn btn-primary">Parse</button>
+                                        </div>
+                                        <div class="alert alert-info">
+                                            <h1 class="alert-heading h6"><i class="bi bi-info-circle"></i> Additional Headers of Interest</h1>
+                                            <div id="additionalHeaders-div">
+                                                <p class="text-muted mb-0">Additional headers of interested found in <em>Step 1</em> will be displayed here</p>
+                                            </div>
                                         </div>
                                     </form>
                                 </div>
