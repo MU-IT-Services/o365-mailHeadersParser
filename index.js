@@ -1,6 +1,19 @@
 // data
 
 /**
+ * All the headers considered to be related to mail routing in the order they
+ * should be displayed.
+ * 
+ * @type {string[]}
+ */
+const ROUTING_HEADERS = [
+    'To',
+    'From',
+    'Reply-To',
+    'Return-Path'
+];
+
+/**
  * A lookup of mail categorisation codes, mapping their abbreviations in the
  * header to their meanings. These are the codes used in the `CAT` field of the
  * `X-Forefront-Antispam-Report` header.
@@ -52,6 +65,7 @@ $.when( $.ready ).then(function() {
     const $forefrontSpamReportTA = $('#forefrontSpamReport-ta');
     const $microsoftAntiSpamHeaderTA = $('#microsoftAntiSpamHeader-ta');
     const $parseBtn = $('button#parse_btn');
+    const $extractRoutingHeadersCB = $('#extractRoutingHeaders-cb');
     const $additionalHeadersDiv = $('#additionalHeaders-div');
 
     // local functions to validate the two forms
@@ -118,6 +132,15 @@ $.when( $.ready ).then(function() {
         // blank the additional headers alert and collect the appropriate headers
         const additionalHeaders = {};
         $additionalHeadersDiv.empty();
+
+        // if required, find the routing headers
+        if($extractRoutingHeadersCB.prop('checked')){
+            for(const header of ROUTING_HEADERS){
+                if(headers[header]) additionalHeaders[header] = headers[header];
+            }
+        }else{
+            $additionalHeadersDiv.append($('<p>').text('Extraction of routing headers disabled.').addClass('text-muted'));
+        }
 
         // if there's a custom header prefix, match any headers and update the alert
         let customPrefix = $customHeadersPrefixTB.val();
