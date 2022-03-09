@@ -116,6 +116,7 @@ $.when( $.ready ).then(function() {
     const $fullHeadersTA = $('#fullHeaders-ta');
     const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
     const $processBtn = $('#process_btn');
+    const $basicsUL = $('#basics-ul');
     const $allHeadersUL = $('#allHeaders-ul');
 
     // local functions to validate the two forms
@@ -213,6 +214,14 @@ $.when( $.ready ).then(function() {
         }
         // store any as-yet unsaved WIP header
         storeWIPHeader();
+
+        // also store the headers in lower case
+        for(const headerName of Object.keys(headers)){
+            const lcHeaderName = headerName.toLowerCase();
+            if(lcHeaderName !== headerName){
+                headers[lcHeaderName] = headers[headerName];
+            }
+        }
         console.debug(headerList, headers);
 
     //     // populate the relevant text areas and validate the form
@@ -248,6 +257,20 @@ $.when( $.ready ).then(function() {
 
     //     // add the additional headers
     //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
+
+        // render the basics
+        $basicsUL.empty();
+        const generateBasicsLI = (n, v)=>{
+            const $header = $('<li class="list-group-item"><code class="header-name"></code>: <span class="font-monospace header-value"></span></li>');
+            $('.header-name', $header).text(n);
+            $('.header-value', $header).text(v);
+            return $header;
+        };
+        $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
+        $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
+        $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
+        if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
+        if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
 
         // render all the headers
         const customPrefix = $customHeadersPrefixTB.val().trim();
