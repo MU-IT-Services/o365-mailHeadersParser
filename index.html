@@ -39,23 +39,15 @@
                     <div class="row">
                         <div class="col-12 col-lg-6">
                             <div class="card mb-3">
-                                <div class="card-header h3">
-                                    Step 1 — Extract Headers (Optional)
+                                <div class="card-header h3 bg-primary text-white">
+                                    Input — Mail Headers
                                 </div>
                                 <div class="card-body">
-                                    <p class="card-text">Paste raw headers or the full message source into the text box below to extract the spam/malware-related headers and populate them into <em>Steps 2</em>.</p>
+                                    <p class="card-text">Paste raw headers or the full message source into the text box below to parse and interpret the mail routing and spam/malware-related headers.</p>
                                     <form action="javascript:void()" novalidate>
                                         <div class="form-floating mb-3">
                                             <textarea id="fullHeaders-ta" class="form-control" style="height: 500px"></textarea>
                                             <label for="fullHeaders-ta">Full Mail Headers</label>
-                                        </div>
-                                        <div class="mb-3">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" value="" id="extractRoutingHeaders-cb" checked>
-                                                <label class="form-check-label" for="extractRoutingHeaders-cb">
-                                                    Extract Routing Headers
-                                                </label>
-                                              </div>
                                         </div>
                                         <div class="mb-3">
                                             <div class="form-floating">
@@ -65,8 +57,9 @@
                                             <div class="form-text">Optionally extract custom mail headers starting with this prefix.</div>
                                         </div>
                                         <div class="mb-3">
-                                            <button type="button" id="extract_btn"
-                                                class="form-control btn btn-primary">Extract</button>
+                                            <button type="button" id="process_btn" class="form-control btn btn-primary">
+                                                Process Headers
+                                            </button>
                                         </div>
                                     </form>
                                 </div>
@@ -74,47 +67,31 @@
                         </div>
                         <div class="col-12 col-lg-6">
                             <div class="card mb-3">
-                                <div class="card-header bg-primary text-white h3">
-                                    Step 2 — Parse Headers
-                                </div>
-                                <div class="card-body">
-                                    <p class="card-text">Paste the relevant headers into the text boxes below, or use <em>Step 1</em> to extract them for you.</p>
-                                    <form action="javascript:void()" novalidate>
-                                        <div class="form-floating mb-3">
-                                            <textarea id="authResultsHeader-ta" class="form-control" style="height: 100px" required></textarea>
-                                            <label for="authResultsHeader-ta"><code>Authentication-results</code> Header</label>
-                                        </div>
-                                        <div class="form-floating mb-3">
-                                            <textarea id="forefrontSpamReport-ta" class="form-control" style="height: 100px" required></textarea>
-                                            <label for="forefrontSpamReport-ta"><code>X-Forefront-Antispam-Report</code> Header</label>
-                                        </div>
-                                        <div class="form-floating mb-3">
-                                            <textarea id="microsoftAntiSpamHeader-ta" class="form-control" style="height: 50px" required></textarea>
-                                            <label for="microsoftAntiSpamHeader-ta"><code>X-Microsoft-Antispam</code> Header</label>
-                                        </div>
-                                        <div class="mb-3">
-                                            <button type="button" id="parse_btn"
-                                                class="form-control btn btn-primary">Parse</button>
-                                        </div>
-                                        <div class="alert alert-info">
-                                            <h1 class="alert-heading h6"><i class="bi bi-info-circle"></i> Additional Headers of Interest</h1>
-                                            <div id="additionalHeaders-div">
-                                                <p class="text-muted mb-0">Additional headers of interested found in <em>Step 1</em> will be displayed here</p>
-                                            </div>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="card mb-3">
                                 <div class="card-header h3 bg-success text-white">
                                     Output  
                                 </div>
                                 <div class="card-body">
+                                    <div class="card text-dark bg-light">
+                                        <div class="card-header h4">
+                                            All Headers
+                                        </div>
+                                        <ul class="list-group list-group-flush" id="allHeaders-ul">
+                                            <li class="list-group-item text-muted"><i class="bi bi-exclamation-circle"></i> No Headers Processed Yet</li>
+                                        </ul>
+                                    </div>
+
+
+
+
+                                    <div class="alert alert-info">
+                                        <h1 class="alert-heading h6"><i class="bi bi-info-circle"></i> Additional Headers of Interest</h1>
+                                        <div id="additionalHeaders-div">
+                                            <p class="text-muted mb-0">Additional headers of interested will be displayed here</p>
+                                        </div>
+                                    </div>
                                     <div id="output_div">
                                         <div class="alert alert-warning">
-                                            <strong><i class="bi bi-exclamation-circle"></i> No headers parsed yet</strong> — use <em>Step 2</em> above to enter the headers directly, or paste the raw headers (or even the entire message source) into <em>Step 1</em> to automatically find the relevant headers and extract them into <em>Step 2</em> for you.
+                                            <strong><i class="bi bi-exclamation-circle"></i> No headers processed yet</strong> — use the form above to enter the raw headers/mail source.
                                         </div>
                                     </div>
                                 </div>

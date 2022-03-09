@@ -60,25 +60,18 @@ const SPAM_FILTER_ACTION_CODES = {
 $.when( $.ready ).then(function() {
     const $fullHeadersTA = $('#fullHeaders-ta');
     const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
-    const $extractBtn = $('button#extract_btn');
-    const $authResultsHeaderTA = $('#authResultsHeader-ta');
-    const $forefrontSpamReportTA = $('#forefrontSpamReport-ta');
-    const $microsoftAntiSpamHeaderTA = $('#microsoftAntiSpamHeader-ta');
-    const $parseBtn = $('button#parse_btn');
-    const $extractRoutingHeadersCB = $('#extractRoutingHeaders-cb');
-    const $additionalHeadersDiv = $('#additionalHeaders-div');
+    const $processBtn = $('#process_btn');
 
     // local functions to validate the two forms
-    const validateExtractFn = ()=>{ validateExtractForm($fullHeadersTA, $customHeadersPrefixTB) };
-    const validateHeadersFn = ()=>{ validateHeaderForm($authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA) };
+    const validateHeadersFn = ()=>{ validateHeadersForm($fullHeadersTA, $customHeadersPrefixTB) };
 
-    // add form validation to the header extraction form
-    $fullHeadersTA.on('input', validateExtractFn);
-    $customHeadersPrefixTB.on('input', validateExtractFn);
-    validateExtractFn();
+    // add form validation
+    $fullHeadersTA.on('input', validateHeadersFn);
+    $customHeadersPrefixTB.on('input', validateHeadersFn);
+    validateHeadersFn();
 
-    // add an event handler to the extract button
-    $extractBtn.click(()=>{
+    // add an event handler to the process button
+    $processBtn.click(()=>{
         // split the raw source into an array of lines
         let rawHeaders = $fullHeadersTA.val().trim();
         rawHeaders.replace(/\n\r|\r\n/g, '\n'); // replace windows line endings with plain \n
@@ -94,8 +87,41 @@ $.when( $.ready ).then(function() {
         }
 
         // extract all headers
-        const headers = {};
-        let currentHeader = '';
+        const headerList = []; // an in-order list of headers, were each header is an object indexed by name, and value
+        const headers = {}; // a lookup of header values indexed by name
+        const wipHeader = { name: '', value: '', index: 0 };
+        const storeWIPHeader = ()=>{
+            if(wipHeader.name.length > 0){
+                // store the finished header
+
+                // always push a shallow clone into the sequential list
+                headerList.push({...wipHeader});
+
+                // insert into the headers dictionary as a single or mutli-value header as appropriate
+                const newHeader = {...wipHeader}; // a shallow clone
+                if(headers[newHeader.name]){
+                    if(headers[newHeader.name].multiValue){
+                        // already a multi-value, just append
+                        headers[newHeader.name].values.push(newHeader);
+                    }else{
+                        // currently a single-value header, convert to multi-value one
+                        const singleHeaderDetails = { ...headers[newHeader.name] }; // shallow clone
+                        headers[newHeader.name].multiValue = true;
+                        headers[newHeader.name].values = [singleHeaderDetails,  newHeader];
+                        delete headers[newHeader.name].value;
+                        delete headers[newHeader.name].index;
+                    }
+                }else{
+                    // never-before seen header, so just save
+                    headers[newHeader.name] = newHeader;
+                }
+
+                // start a new WIP header
+                wipHeader.name = '';
+                wipHeader.value = '';
+                wipHeader.index++;
+            }
+        };
         while(headerLines.length > 0){
             // shift the first remaning line
             const l = headerLines.shift();
@@ -107,80 +133,86 @@ $.when( $.ready ).then(function() {
 
             // see if we're starting a new header (no leading spaces) or continuing one
             if(l.match(/^\w/)){
+                // new header
+
+                // store the previous header
+                storeWIPHeader();
+
                 // spit the header name from the value
                 const headerMatch = l.match(/^([-\w\d]+):[ ]?(.*)/);
                 if(headerMatch){
-                    headers[headerMatch[1]] = headerMatch[2] || '';
-                    currentHeader = headerMatch[1];
+                    wipHeader.name = headerMatch[1];
+                    wipHeader.value = headerMatch[2] || '';
                 }else{
                     console.warn('failed to parse header line', l);
                 }
             }else if(l.match(/^\s+/)){
+                // continuing the previous header
+
                 // append the line to the current header
-                headers[currentHeader] += ' ' + l.trim();
+                wipHeader.value += ' ' + l.trim();
             }else{
                 console.warn('failed to interpret header line', l);
             }
         }
+        // store any as-yet unsaved WIP header
+        storeWIPHeader();
+        console.log(headerList, headers);
 
-        // populate the relevant text areas and validate the form
-        $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
-        $forefrontSpamReportTA.val(headers['X-Forefront-Antispam-Report'] ? 'X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report'] : '');
-        $microsoftAntiSpamHeaderTA.val(headers['X-Microsoft-Antispam'] ? 'X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam'] : '');
-        if(validateHeadersFn()) $parseBtn.focus();
+    //     // populate the relevant text areas and validate the form
+    //     $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
+    //     $forefrontSpamReportTA.val(headers['X-Forefront-Antispam-Report'] ? 'X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report'] : '');
+    //     $microsoftAntiSpamHeaderTA.val(headers['X-Microsoft-Antispam'] ? 'X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam'] : '');
+    //     if(validateHeadersFn()) $parseBtn.focus();
 
-        // blank the additional headers alert and collect the appropriate headers
-        const additionalHeaders = {};
-        $additionalHeadersDiv.empty();
+    //     // blank the additional headers alert and collect the appropriate headers
+    //     const additionalHeaders = {};
+    //     $additionalHeadersDiv.empty();
 
-        // if required, find the routing headers
-        if($extractRoutingHeadersCB.prop('checked')){
-            for(const header of ROUTING_HEADERS){
-                if(headers[header]) additionalHeaders[header] = headers[header];
-            }
-        }else{
-            $additionalHeadersDiv.append($('<p>').text('Extraction of routing headers disabled.').addClass('text-muted'));
-        }
+    //     // if required, find the routing headers
+    //     if($extractRoutingHeadersCB.prop('checked')){
+    //         for(const header of ROUTING_HEADERS){
+    //             if(headers[header]) additionalHeaders[header] = headers[header];
+    //         }
+    //     }else{
+    //         $additionalHeadersDiv.append($('<p>').text('Extraction of routing headers disabled.').addClass('text-muted'));
+    //     }
 
-        // if there's a custom header prefix, match any headers and update the alert
-        let customPrefix = $customHeadersPrefixTB.val();
-        if(customPrefix.length > 0){
-            for(const header of Object.keys(headers).sort()){
-                if(header.startsWith(customPrefix)){
-                    additionalHeaders[header] = headers[header];
-                }
-            }
-        }else{
-            $additionalHeadersDiv.append($('<p>').text('No matching custom headers found').addClass('text-muted'));
-        }
+    //     // if there's a custom header prefix, match any headers and update the alert
+    //     let customPrefix = $customHeadersPrefixTB.val();
+    //     if(customPrefix.length > 0){
+    //         for(const header of Object.keys(headers).sort()){
+    //             if(header.startsWith(customPrefix)){
+    //                 additionalHeaders[header] = headers[header];
+    //             }
+    //         }
+    //     }else{
+    //         $additionalHeadersDiv.append($('<p>').text('No matching custom headers found').addClass('text-muted'));
+    //     }
 
-        // add the additional headers
-        $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
+    //     // add the additional headers
+    //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
     });
 
-    // add form validation to the header text areas
-    $authResultsHeaderTA.on('input', validateHeadersFn);
-    $forefrontSpamReportTA.on('input', validateHeadersFn);
-    $microsoftAntiSpamHeaderTA.on('input', validateHeadersFn);
-    validateHeadersFn();
+  
 
-    // add an event handler to the parse button
-    $parseBtn.click(()=>{
-        const messageDetails = {
-            ...parseAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val())),
-            ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
-            ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
-        };
-        const $out = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(messageDetails, {}));
-        $('#output_div').empty().append($out);
-    });
+    // // add an event handler to the parse button
+    // $parseBtn.click(()=>{
+    //     const messageDetails = {
+    //         ...parseAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val())),
+    //         ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
+    //         ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
+    //     };
+    //     const $out = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(messageDetails, {}));
+    //     $('#output_div').empty().append($out);
+    // });
 
     // focus the full headers field
     $fullHeadersTA.focus();
 });
 
 /**
- * Validate the header extraction form.
+ * Validate the header details form.
  * 
  * @param {jQuery} $fullHeadersTA - a jQuery object representing the
  * full headers text area.
@@ -188,7 +220,7 @@ $.when( $.ready ).then(function() {
  * optional custom header prefix.
  * @return {boolean}
  */
- function validateExtractForm($fullHeadersTA, $customHeadersPrefixTB){
+ function validateHeadersForm($fullHeadersTA, $customHeadersPrefixTB){
     // make sure we were passed two jQuery objects
     for(const $textInput of [$fullHeadersTA, $customHeadersPrefixTB]){
         if(!$textInput instanceof $){
@@ -228,88 +260,6 @@ $.when( $.ready ).then(function() {
 }
 
 /**
- * Validate the forefront spam report header input box.
- * 
- * @param {jQuery} $authResultsHeaderTA - a jQuery object representing the
- * auth results header text area.
- * @param {jQuery} $authResulforefrontSpamReportTAtsHeaderTA - a jQuery object
- * representing the forefront spam report text area.
- * @param {jQuery} $microsoftAntiSpamHeaderTA - a jQuery object representing
- * the microsoft anti-spam header text area.
- * @return {boolean}
- */
- function validateHeaderForm($authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA){
-    // make sure we were passed three jQuery objects
-    for(const $textArea of [$authResultsHeaderTA, $forefrontSpamReportTA, $microsoftAntiSpamHeaderTA]){
-        if(!$textArea instanceof $){
-            console.warn('header form validation must be passed three jQuery objects');
-            return false;
-        }
-    }
-
-    // validate each text area
-    let numError = 0;
-    let numOK = 0;
-    if(isValidAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val()))){
-        $authResultsHeaderTA.removeClass('is-invalid').addClass('is-valid');
-        numOK++;
-    }else{
-        $authResultsHeaderTA.removeClass('is-valid');
-        if($authResultsHeaderTA.val() !== ''){
-            $authResultsHeaderTA.addClass('is-invalid');
-            numError++;
-        }
-    }
-    if(isValidForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val()))){
-        $forefrontSpamReportTA.removeClass('is-invalid').addClass('is-valid');
-        numOK++;
-    }else{
-        $forefrontSpamReportTA.removeClass('is-valid');
-        if($forefrontSpamReportTA.val() !== ''){
-            $forefrontSpamReportTA.addClass('is-invalid');
-            numError++;
-        }
-    }
-    if(isValidMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))){
-        $microsoftAntiSpamHeaderTA.removeClass('is-invalid').addClass('is-valid');
-        numOK++;
-    }else{
-        $microsoftAntiSpamHeaderTA.removeClass('is-valid');
-        if($microsoftAntiSpamHeaderTA.val() !== ''){
-            $microsoftAntiSpamHeaderTA.addClass('is-invalid');
-            numError++;
-        }
-    }
-    
-    // if none failed and there is at least one valid, enable the form and return true
-    if(numError === 0 && numOK > 0){
-        $authResultsHeaderTA.closest('form').find('button').prop('disabled', false);
-        return true;
-    }
-
-    // default to disabling and return false
-    $authResultsHeaderTA.closest('form').find('button').prop('disabled', true);
-    return false;
-}
-
-/**
- * Validate the microsoft anti-spam header input box.
- * 
- * @param {jQuery} $textArea - a jQuery object representing the text area to validate
- * @return {boolean}
- */
- function validateAntiSpamTA($textArea){
-    if(isValidSpamReportHeader(sanitiseMailHeader($textArea.val()))){
-        $textArea.removeClass('is-invalid').addClass('is-valid');
-        $textArea.closest('form').find('button').prop('disabled', false);
-        return true;
-    }
-    $textArea.removeClass('is-valid').addClass('is-invalid');
-    //$textArea.closest('form').find('button').prop('disabled', true);
-    return false;
-}
-
-/**
  * Sanitise a raw mail header.
  * 
  * This function:
@@ -343,66 +293,6 @@ function sanitiseMailHeader(input){
 
     // make sure the string is a single line
     if(input.split(/\r\n|\r|\n/).length !== 1) return false;
-
-    // if we got here all is well, so return true
-    return true;
-}
-
-/**
- * Check if something is a plausible authentication result header.
- * 
- * A header must be a single-line string that starts with
- * `Authentication-Results:`
- * 
- * @param {string} input
- * @returns {boolean}
- */
- function isValidAuthResultHeader(input){
-    // make sure we have a plausible header
-    if(!isValidHeader(input)) return false;
-
-    // make sure the string starts with the expected text
-    if(!input.startsWith('Authentication-Results:')) return false;
-
-    // if we got here all is well, so return true
-    return true;
-}
-
-/**
- * Check if something is a plausible spam report header.
- * 
- * A header must be a single-line string that starts with
- * `X-Forefront-Antispam-Report:`
- * 
- * @param {string} input
- * @returns {boolean}
- */
- function isValidForefrontSpamReportHeader(input){
-    // make sure we have a plausible header
-    if(!isValidHeader(input)) return false;
-
-    // make sure the string starts with the expected text
-    if(!input.startsWith('X-Forefront-Antispam-Report:')) return false;
-
-    // if we got here all is well, so return true
-    return true;
-}
-
-/**
- * Check if something is a plausible anti-spam header.
- * 
- * A header must be a single-line string that starts with
- * `X-Microsoft-Antispam:`
- * 
- * @param {string} input
- * @returns {boolean}
- */
-function isValidMicrosoftAntiSpamHeader(input){
-    // make sure we have a plausible header
-    if(!isValidHeader(input)) return false;
-
-    // make sure the string starts with the expected text
-    if(!input.startsWith('X-Microsoft-Antispam:')) return false;
 
     // if we got here all is well, so return true
     return true;
