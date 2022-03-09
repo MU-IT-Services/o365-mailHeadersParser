@@ -1,17 +1,72 @@
 // data
 
 /**
- * All the headers considered to be related to mail routing in the order they
+ * All the headers considered to be related to mail addressing in the order they
  * should be displayed.
  * 
  * @type {string[]}
  */
-const ROUTING_HEADERS = [
+const ADDRESSING_HEADERS = [
     'To',
     'From',
     'Reply-To',
     'Return-Path'
 ];
+
+/**
+ * A lookup of the headers to be marked as addressing-related.
+ * 
+ * @type {object.<string, boolean>}
+ */
+const ADDRESSING_HEADERS_LOOKUP = {};
+for(const header of ADDRESSING_HEADERS){
+    ADDRESSING_HEADERS_LOOKUP[header] = true;
+    ADDRESSING_HEADERS_LOOKUP[header.toLowerCase()] = true;
+}
+
+/**
+ * All the headers considered to be related to mail routing in the order they
+ * should be displayed.
+ * 
+ * @type {string[]}
+ */
+ const ROUTING_HEADERS = [
+    'Received'
+];
+
+/**
+ * A lookup of the headers to be marked as routing-related.
+ * 
+ * @type {object.<string, boolean>}
+ */
+const ROUTING_HEADERS_LOOKUP = {};
+for(const header of ROUTING_HEADERS) {
+    ROUTING_HEADERS_LOOKUP[header] = true;
+    ROUTING_HEADERS_LOOKUP[header.toLowerCase()] = true;
+}
+
+/**
+ * All the headers considered to be related to mail seurity in the order they
+ * should be displayed.
+ * 
+ * @type {string[]}
+ */
+ const SECURITY_HEADERS = [
+    'Authentication-Results',
+    'X-Forefront-Antispam-Report',
+    'X-Microsoft-Antispam'
+];
+
+/**
+ * A lookup of the headers to be marked as security headers.
+ * 
+ * @type {object.<string, boolean>}
+ */
+const SECURITY_HEADERS_LOOKUP = {};
+for(const header of SECURITY_HEADERS){
+    SECURITY_HEADERS_LOOKUP[header] = true;
+    SECURITY_HEADERS_LOOKUP[header.toLocaleLowerCase()] = true;
+}
 
 /**
  * A lookup of mail categorisation codes, mapping their abbreviations in the
@@ -195,12 +250,22 @@ $.when( $.ready ).then(function() {
     //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
 
         // render all the headers
+        const customPrefix = $customHeadersPrefixTB.val().trim();
         $allHeadersUL.empty();
         if(headerList. length > 0){
             for(const header of headerList){
                 const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
                 $('.header-name', $header).text(header.name);
                 $('.header-value', $header).text(header.value);
+                if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-danger bg-opacity-10');
+                }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-warning bg-opacity-10');
+                }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-primary bg-opacity-10');
+                }else if(customPrefix.length > 0 && header.name.startsWith(customPrefix)){
+                    $header.addClass('bg-success bg-opacity-10');
+                }
                 $allHeadersUL.append($header);    
             }
         }else{
