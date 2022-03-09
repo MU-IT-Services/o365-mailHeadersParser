@@ -61,6 +61,7 @@ $.when( $.ready ).then(function() {
     const $fullHeadersTA = $('#fullHeaders-ta');
     const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
     const $processBtn = $('#process_btn');
+    const $allHeadersUL = $('#allHeaders-ul');
 
     // local functions to validate the two forms
     const validateHeadersFn = ()=>{ validateHeadersForm($fullHeadersTA, $customHeadersPrefixTB) };
@@ -157,7 +158,7 @@ $.when( $.ready ).then(function() {
         }
         // store any as-yet unsaved WIP header
         storeWIPHeader();
-        console.log(headerList, headers);
+        console.debug(headerList, headers);
 
     //     // populate the relevant text areas and validate the form
     //     $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
@@ -192,6 +193,19 @@ $.when( $.ready ).then(function() {
 
     //     // add the additional headers
     //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
+
+        // render all the headers
+        $allHeadersUL.empty();
+        if(headerList. length > 0){
+            for(const header of headerList){
+                const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+                $('.header-name', $header).text(header.name);
+                $('.header-value', $header).text(header.value);
+                $allHeadersUL.append($header);    
+            }
+        }else{
+            $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
+        }
     });
 
   
