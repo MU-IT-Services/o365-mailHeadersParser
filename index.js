@@ -269,8 +269,8 @@ $.when( $.ready ).then(function() {
         $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
         $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
         $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
-        if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
         if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
+        if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
 
         // render all the headers
         const customPrefix = $customHeadersPrefixTB.val().trim();
