@@ -339,8 +339,8 @@ $.when( $.ready ).then(function() {
             $securityAnalysisUL.append($compAuthLI);
 
             // local function for adding details to SFP, DKIM, or DMARC
-            const appendDetails = ($li)=>{
-                $li.append(' ').append($('<span>').addClass('text-muted font-monospace').text(securityDetails.spf.details));
+            const appendDetails = ($li, result)=>{
+                $li.append(' ').append($('<span>').addClass('text-muted font-monospace').text(result.details));
             };
 
             // add SPF
@@ -348,34 +348,34 @@ $.when( $.ready ).then(function() {
             switch(securityDetails.spf.result){
                 case 'none':
                     $spfLI.append($('<span>').addClass('badge bg-secondary').text('no SPF record'));
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'pass':
                     $spfLI.append($('<span>').addClass('badge bg-success').text('pass'));
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'neutral':
                     $spfLI.append($('<span>').addClass('badge bg-primary').text('neutral'));
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'fail':
                     $spfLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.spf.result));
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'softfail':
                     $spfLI.append($('<span>').addClass('badge bg-danger').text('soft fail'));
                     appendInfo($spfLI, 'sender denied but SPF record is permissive (~all), not enforcing (-all)');
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'temperror':
                     $spfLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
                     appendInfo($spfLI, 'SPF processing failed because of a temporary problem, usually a DNS lookup failure');
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'permerror':
                     $spfLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
                     appendInfo($spfLI, 'SPF processing failed because of a problem with the record, usally a syntax error in the record itself');
-                    appendDetails($spfLI);
+                    appendDetails($spfLI, securityDetails.spf);
                     break;
                 case 'unknown':
                     $spfLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No SPF details found in <code>Authentication-Results</code> header'));
@@ -387,17 +387,17 @@ $.when( $.ready ).then(function() {
 
             // add DKIM
             const $dkimLI = $('<li>').addClass('list-group-item').html('<strong>DKIM Validation:</strong> ');
-            switch(securityDetails.spf.result){
+            switch(securityDetails.dkim.result){
                 case 'none':
                     $dkimLI.append($('<span>').addClass('badge bg-secondary').text('message not signed'));
                     break;
                 case 'pass':
                     $dkimLI.append($('<span>').addClass('badge bg-success').text('pass'));
-                    appendDetails($dkimLI);
+                    appendDetails($dkimLI, securityDetails.dkim);
                     break;
                 case 'fail':
                     $dkimLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dkim.result));
-                    appendDetails($dkimLI);
+                    appendDetails($dkimLI, securityDetails.dkim);
                     break;
                 case 'unknown':
                     $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
@@ -408,6 +408,31 @@ $.when( $.ready ).then(function() {
             $securityAnalysisUL.append($dkimLI);
 
             // add DMARC
+            const $dmarcLI = $('<li>').addClass('list-group-item').html('<strong>DMARC Validation:</strong> ');
+            switch(securityDetails.dmarc.result){
+                case 'none':
+                    $dmarcLI.append($('<span>').addClass('badge bg-secondary').text('no DMARC record'));
+                    break;
+                case 'pass':
+                    $dmarcLI.append($('<span>').addClass('badge bg-success').text('pass'));
+                    appendDetails($dmarcLI, securityDetails.dmarc);
+                    break;
+                case 'bestguesspass':
+                    $dmarcLI.append($('<span>').addClass('badge bg-success').text('inferred pass'));
+                    appendInfo($dmarcLI, 'There is no DMARC record for the domain, but if a typical record existed, it would have passed');
+                    appendDetails($dmarcLI, securityDetails.dmarc);
+                    break;
+                case 'fail':
+                    $dmarcLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dmarc.result));
+                    appendDetails($dmarcLI, securityDetails.dmarc);
+                    break;
+                case 'unknown':
+                    $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+                    break;
+                default:
+                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+            }
+            $securityAnalysisUL.append($dmarcLI);
         }else{
             $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
         }
@@ -677,7 +702,7 @@ function compoundAuthenticationReason(code){
                     }else{
                         console.warn('failed to parse dmarc details', partDetails);
                     }
-                    ans.dmarc.details = headerPart;
+                    ans.dmarc.details = partDetails;
                     break;
                 case 'dkim':
                 case 'spf':
