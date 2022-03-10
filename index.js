@@ -386,6 +386,26 @@ $.when( $.ready ).then(function() {
             $securityAnalysisUL.append($spfLI);
 
             // add DKIM
+            const $dkimLI = $('<li>').addClass('list-group-item').html('<strong>DKIM Validation:</strong> ');
+            switch(securityDetails.spf.result){
+                case 'none':
+                    $dkimLI.append($('<span>').addClass('badge bg-secondary').text('message not signed'));
+                    break;
+                case 'pass':
+                    $dkimLI.append($('<span>').addClass('badge bg-success').text('pass'));
+                    appendDetails($dkimLI);
+                    break;
+                case 'fail':
+                    $dkimLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dkim.result));
+                    appendDetails($dkimLI);
+                    break;
+                case 'unknown':
+                    $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+                    break;
+                default:
+                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+            }
+            $securityAnalysisUL.append($dkimLI);
 
             // add DMARC
         }else{
