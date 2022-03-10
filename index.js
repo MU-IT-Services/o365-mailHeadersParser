@@ -295,7 +295,38 @@ $.when( $.ready ).then(function() {
         if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
 
         // render the security summary
-        // TO DO
+        $securityAnalysisUL.empty();
+        if(securityDetails.authenticationResultsHeaderSpecified){
+            const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>SPF Record:</strong> ');
+            const appendCompauthReason = ($li)=>{
+                if(securityDetails.compoundAuthentication.reasonCode !== '000'){
+                    $info = $('<span>').addClass('text-muted').html(' <code class="code"></code> <span class="meaning"></span>');
+                    $('.code', $info).text(securityDetails.compoundAuthentication.reasonCode);
+                    $('.meaning', $info).text(securityDetails.compoundAuthentication.reasonMeaning);
+                    $li.append($info);
+                }
+            };
+            switch(securityDetails.compoundAuthentication.result){
+                case 'pass':
+                case 'softpass':
+                    $compAuthLI.append($('<span>').addClass('badge bg-success').text(securityDetails.compoundAuthentication.result));
+                    appendCompauthReason($compAuthLI);
+                    break;
+                case 'none':
+                    $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NONE'));
+                    $compAuthLI.append($('<span>').addClass('text-muted').text(' no SPF recored specified on the domain'));
+                    break;
+                case 'fail':
+                    $compAuthLI.append($('<span>').addClass('badge bg-danger').text('FAIL'));
+                    appendCompauthReason($compAuthLI);
+                    break;
+                default:
+                    $compAuthLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+            }
+            $securityAnalysisUL.append($compAuthLI);
+        }else{
+            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
+        }
 
         // render the custom headers
         $customHeadersUL.empty();
@@ -463,6 +494,7 @@ function compoundAuthenticationReason(code){
  * @return {object} Returns an object of the form:
  * ```
  * {
+ *   authenticationResultsHeaderSpecified: true,
  *   compoundAuthentication: {
  *     result: 'unknown',
  *     reasonCode: '000',
@@ -500,6 +532,7 @@ function compoundAuthenticationReason(code){
 
     // initiaise the return value
     const ans = {
+        authenticationResultsHeaderSpecified: true,
         compoundAuthentication: {
             result: 'unknown',
             reasonCode: '000',
