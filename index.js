@@ -243,45 +243,11 @@ $.when( $.ready ).then(function() {
 
         // genereate the security report
         const securityDetails = {
-            ...parseAuthResultHeader(headers['authentication-results'].value),
-    //         ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
-    //         ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
+            ...parseAuthResultHeader(headers.authentication_results.value),
+            ...parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value),
+            ...parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value)
         };
         console.debug(securityDetails);
-
-    //     // populate the relevant text areas and validate the form
-    //     $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
-    //     $forefrontSpamReportTA.val(headers['X-Forefront-Antispam-Report'] ? 'X-Forefront-Antispam-Report: ' + headers['X-Forefront-Antispam-Report'] : '');
-    //     $microsoftAntiSpamHeaderTA.val(headers['X-Microsoft-Antispam'] ? 'X-Microsoft-Antispam: ' + headers['X-Microsoft-Antispam'] : '');
-    //     if(validateHeadersFn()) $parseBtn.focus();
-
-    //     // blank the additional headers alert and collect the appropriate headers
-    //     const additionalHeaders = {};
-    //     $additionalHeadersDiv.empty();
-
-    //     // if required, find the routing headers
-    //     if($extractRoutingHeadersCB.prop('checked')){
-    //         for(const header of ROUTING_HEADERS){
-    //             if(headers[header]) additionalHeaders[header] = headers[header];
-    //         }
-    //     }else{
-    //         $additionalHeadersDiv.append($('<p>').text('Extraction of routing headers disabled.').addClass('text-muted'));
-    //     }
-
-    //     // if there's a custom header prefix, match any headers and update the alert
-    //     let customPrefix = $customHeadersPrefixTB.val();
-    //     if(customPrefix.length > 0){
-    //         for(const header of Object.keys(headers).sort()){
-    //             if(header.startsWith(customPrefix)){
-    //                 additionalHeaders[header] = headers[header];
-    //             }
-    //         }
-    //     }else{
-    //         $additionalHeadersDiv.append($('<p>').text('No matching custom headers found').addClass('text-muted'));
-    //     }
-
-    //     // add the additional headers
-    //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
 
         // render all the headers
         $allHeadersUL.empty();
@@ -348,19 +314,6 @@ $.when( $.ready ).then(function() {
             $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
         }
     });
-
-  
-
-    // // add an event handler to the parse button
-    // $parseBtn.click(()=>{
-    //     const messageDetails = {
-    //         ...parseAuthResultHeader(sanitiseMailHeader($authResultsHeaderTA.val())),
-    //         ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
-    //         ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
-    //     };
-    //     const $out = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(messageDetails, {}));
-    //     $('#output_div').empty().append($out);
-    // });
 
     // focus the full headers field
     $fullHeadersTA.focus();
@@ -660,11 +613,15 @@ function compoundAuthenticationReason(code){
  */
 function parseForefrontSpamReportHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
-    if(input === '') return {};
-    if(!isValidForefrontSpamReportHeader(input)) throw new RangeError('must pass a sanitised header');
 
-    // strip off the header name
-    let headerVal = input.replace(/^X-Forefront-Antispam-Report:[ ]/, '');
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = input.replace(/^X-Forefront-Antispam-Report:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
 
     // break the header down into its parts
     const header = {};
@@ -722,8 +679,15 @@ function parseForefrontSpamReportHeader(input){
  */
 function parseMicrosoftAntiSpamHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
-    if(input === '') return {};
-    if(!isValidMicrosoftAntiSpamHeader(input)) throw new RangeError('must pass a sanitised header');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = input.replace(/^X-Microsoft-Antispam:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
 
     // extract the BCL and return
     const bclMatch = input.match(/BCL:(\d+)/);
