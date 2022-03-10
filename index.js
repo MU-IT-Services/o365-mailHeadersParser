@@ -437,6 +437,56 @@ $.when( $.ready ).then(function() {
             $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
         }
 
+        // next the spam report header
+        if(securityDetails.spamReportHeaderSpecified){
+            const $spamScoreLI = $('<li>').addClass('list-group-item').html('<strong>Spam Filter:</strong> ');
+            const $scl = $('<span>').addClass('badge').html('SCL <span class="code font-monospace"></span> — <span class="meaning"></span>');
+            const sclDesc = sclMeaning(securityDetails.spamScore);
+            $('.code', $scl).text(securityDetails.spamScore);
+            $('.meaning', $scl).text(sclDesc);
+            switch(sclDesc){
+                case 'not spam':
+                    $scl.addClass('bg-success');
+                    break;
+                case 'spam':
+                case 'high confidence spam':
+                    $scl.addClass('bg-danger');
+                    break;
+                 default:
+                    $scl.addClass('bg-secondary');
+            }
+            $spamScoreLI.append($scl);
+            if(securityDetails.spamFilterAction !== 'none'){
+                $spamScoreLI.append(' ').append($('<span>').text(securityDetails.spamFilterAction));
+            }
+            $securityAnalysisUL.append($spamScoreLI);
+        }else{
+            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Forefront-Antispam-Report</code> header found'));
+        }
+
+        // finally the bulk mail header
+        if(securityDetails.bulkMailReportHeaderSpecified){
+            const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
+            const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
+            const bclDesc = bclMeaning(securityDetails.bulkMailScore);
+            console.log(bclDesc);
+            $('.code', $bcl).text(securityDetails.bulkMailScore);
+            $('.meaning', $bcl).text(bclDesc);
+            if(bclDesc === 'not from bulk mail sender' || bclDesc.includes('few user complaints')){
+                $('.badge', $bcl).addClass('bg-success');
+            }else if(bclDesc.includes('some user complaints')){
+                $$('.badge', $bcl).addClass('bg-warning');
+            }else if(bclDesc.includes('many user complaints')){
+                $('.badge', $bcl).addClass('bg-danger');
+            }else{
+                $('.badge', $bcl).addClass('bg-secondary');
+            }
+            $bulkMailScoreLI.append($bcl);
+            $securityAnalysisUL.append($bulkMailScoreLI);
+        }else{
+            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Microsoft-Antispam</code> header found'));
+        }
+
         // render the custom headers
         $customHeadersUL.empty();
         if(customPrefix.length > 0){
@@ -597,6 +647,46 @@ function compoundAuthenticationReason(code){
 }
 
 /**
+ * Convert an SCL (Spam Confidence Level) to a human-friendly description.
+ * 
+ * @see {@link https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/spam-confidence-levels?view=o365-worldwide}
+ * @param {number} scl 
+ * @returns {string}
+ */
+function sclMeaning(scl = -2){ // force to an invalid value of none passed
+    scl = parseInt(scl); // force to integer
+
+    // deal with valid values
+    if(scl === -1) return 'not scored';
+    if(scl === 0 || scl === 1) return 'not spam';
+    if(scl === 5 || scl === 6) return 'spam';
+    if(scl === 9) return 'high-confidence spam';
+
+    // if all else fails, return 'UNKNOWN'
+    return 'UNKNOWN'
+}
+
+/**
+ * Convert a BCL (Bulk Mail Confidence Level) to a human-friendly description.
+ * 
+ * @param {number} scl 
+ * @returns {string}
+ * @see {@link https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/bulk-complaint-level-values?view=o365-worldwide}
+ */
+ function bclMeaning(bcl = -2){ // force to an invalid value of none passed
+    bcl = parseInt(bcl); // force to integer
+
+    // deal with valid values
+    if(bcl === 0) return 'not from bulk mail sender';
+    if(bcl <= 3) return 'from bulk mail sender with few user complaints';
+    if(bcl <= 7) return 'from bulk mail sender with some user complaints';
+    if(vcl <= 9) return 'from bulk mail sender with many user complaints';
+
+    // if all else fails, return 'UNKNOWN'
+    return 'UNKNOWN'
+}
+
+/**
  * Parse an authentication results header.
  * 
  * @param {string} input 
@@ -736,6 +826,7 @@ function compoundAuthenticationReason(code){
  * @returns {object} Returns a plain object of the form:
  * ```
  * {
+ *   spamReportHeaderSpecified: true,
  *   messageCategorisation: 'NONE',
  *   sender: {
  *     countryCode: 'DE',
@@ -780,6 +871,7 @@ function parseForefrontSpamReportHeader(input){
 
     // assemble the return value
     const ans = {
+        spamReportHeaderSpecified: true,
         messageCategorisation: MAIL_CATEGORISATION_CODES[header.CAT] ? MAIL_CATEGORISATION_CODES[header.CAT] : header.CAT,
         sender: {
             countryCode: header.CTRY || 'UNKNOWN',
@@ -813,6 +905,7 @@ function parseForefrontSpamReportHeader(input){
  * @return {object} Returns an object of the form:
  * ```
  * {
+ *   bulkMailReportHeaderSpecified: true,
  *   bulkMailScore: 1
  * }
  * ```
@@ -834,6 +927,7 @@ function parseMicrosoftAntiSpamHeader(input){
     // extract the BCL and return
     const bclMatch = input.match(/BCL:(\d+)/);
     return {
+        bulkMailReportHeaderSpecified: true,
         bulkMailScore: bclMatch ? parseInt(bclMatch[1]) : -1
     };
 }
