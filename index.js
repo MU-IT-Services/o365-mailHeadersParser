@@ -297,7 +297,7 @@ $.when( $.ready ).then(function() {
         // render the security summary
         $securityAnalysisUL.empty();
         if(securityDetails.authenticationResultsHeaderSpecified){
-            const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>SPF Record:</strong> ');
+            const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>Compound Authentication:</strong> ');
             const appendCompauthReason = ($li)=>{
                 if(securityDetails.compoundAuthentication.reasonCode !== '000'){
                     $info = $('<span>').addClass('text-muted').html(' <code class="code"></code> <span class="meaning"></span>');
@@ -313,8 +313,8 @@ $.when( $.ready ).then(function() {
                     appendCompauthReason($compAuthLI);
                     break;
                 case 'none':
-                    $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NONE'));
-                    $compAuthLI.append($('<span>').addClass('text-muted').text(' no SPF recored specified on the domain'));
+                    $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NOT PERFORMED'));
+                    appendCompauthReason($compAuthLI);
                     break;
                 case 'fail':
                     $compAuthLI.append($('<span>').addClass('badge bg-danger').text('FAIL'));
