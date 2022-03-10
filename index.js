@@ -117,6 +117,9 @@ $.when( $.ready ).then(function() {
     const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
     const $processBtn = $('#process_btn');
     const $basicsUL = $('#basics-ul');
+    const $securityAnalysisUL = $('#securityAnalysis-ul');
+    const $customHeadersUL = $('#customHeaders-ul');
+    const $securityReportDiv = $('#securityReport-div');
     const $allHeadersUL = $('#allHeaders-ul');
 
     // local functions to validate the two forms
@@ -146,6 +149,7 @@ $.when( $.ready ).then(function() {
         // extract all headers
         const headerList = []; // an in-order list of headers, were each header is an object indexed by name, and value
         const headers = {}; // a lookup of header values indexed by name
+        let customHeaderNames = []; // an array of all the header names matching the specified custom prefix (if any)
         const wipHeader = { name: '', value: '', index: 0 };
         const storeWIPHeader = ()=>{
             if(wipHeader.name.length > 0){
@@ -215,14 +219,35 @@ $.when( $.ready ).then(function() {
         // store any as-yet unsaved WIP header
         storeWIPHeader();
 
-        // also store the headers in lower case
+        // also store the headers in lower case, and in lower-case with the dashes replaced with underscores
+        // while looping over all the headers, also save any matching custom headers
+        const customPrefix = $customHeadersPrefixTB.val().trim();
         for(const headerName of Object.keys(headers)){
+            // store in lower case and with underscores
             const lcHeaderName = headerName.toLowerCase();
+            const lcUunderScoreHeaderName = lcHeaderName.replaceAll('-', '_');
             if(lcHeaderName !== headerName){
                 headers[lcHeaderName] = headers[headerName];
             }
+            if(lcUunderScoreHeaderName !== headerName && lcUunderScoreHeaderName !== lcHeaderName){
+                headers[lcUunderScoreHeaderName] = headers[headerName];
+            }
+
+            // check if custom header
+            if(lcHeaderName.startsWith(customPrefix.toLowerCase())){
+                customHeaderNames.push(headerName);
+            }
         }
-        console.debug(headerList, headers);
+        customHeaderNames = customHeaderNames.sort();
+        console.debug(headerList, headers, customHeaderNames);
+
+        // genereate the security report
+        const securityDetails = {
+            ...parseAuthResultHeader(headers['authentication-results'].value),
+    //         ...parseForefrontSpamReportHeader(sanitiseMailHeader($forefrontSpamReportTA.val())),
+    //         ...parseMicrosoftAntiSpamHeader(sanitiseMailHeader($microsoftAntiSpamHeaderTA.val()))
+        };
+        console.debug(securityDetails);
 
     //     // populate the relevant text areas and validate the form
     //     $authResultsHeaderTA.val(headers['Authentication-Results'] ? 'Authentication-Results: ' + headers['Authentication-Results'] : '');
@@ -258,6 +283,37 @@ $.when( $.ready ).then(function() {
     //     // add the additional headers
     //     $additionalHeadersDiv.append($('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(additionalHeaders, {})));
 
+        // render all the headers
+        $allHeadersUL.empty();
+        if(headerList. length > 0){
+            for(const header of headerList){
+                const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+                $('.header-name', $header).text(header.name);
+                $('.header-value', $header).text(header.value);
+                if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-danger bg-opacity-10');
+                }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-warning bg-opacity-10');
+                }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                    $header.addClass('bg-primary bg-opacity-10');
+                }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
+                    $header.addClass('bg-success bg-opacity-10');
+                }
+                $allHeadersUL.append($header);    
+            }
+        }else{
+            $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
+        }
+
+        // render the full security report
+        $securityReportDiv.empty();
+        if(Object.keys(securityDetails).length > 0){
+            const $securityReport = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(securityDetails, {}));
+            $securityReportDiv.append($securityReport);
+        }else{
+            $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
+        }
+
         // render the basics
         $basicsUL.empty();
         const generateBasicsLI = (n, v)=>{
@@ -272,27 +328,24 @@ $.when( $.ready ).then(function() {
         if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
         if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
 
-        // render all the headers
-        const customPrefix = $customHeadersPrefixTB.val().trim();
-        $allHeadersUL.empty();
-        if(headerList. length > 0){
-            for(const header of headerList){
-                const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-                $('.header-name', $header).text(header.name);
-                $('.header-value', $header).text(header.value);
-                if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-danger bg-opacity-10');
-                }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-warning bg-opacity-10');
-                }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-primary bg-opacity-10');
-                }else if(customPrefix.length > 0 && header.name.startsWith(customPrefix)){
-                    $header.addClass('bg-success bg-opacity-10');
+        // render the security summary
+        // TO DO
+
+        // render the custom headers
+        $customHeadersUL.empty();
+        if(customPrefix.length > 0){
+            if(customHeaderNames.length > 0){
+                for(const headerName of customHeaderNames){
+                    const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+                    $('.header-name', $header).text(headers[headerName].name);
+                    $('.header-value', $header).text(headers[headerName].value);
+                    $customHeadersUL.append($header);
                 }
-                $allHeadersUL.append($header);    
+            }else{
+                $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${customPrefix}</code>`));
             }
         }else{
-            $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
+            $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
         }
     });
 
@@ -482,8 +535,15 @@ function compoundAuthenticationReason(code){
  */
  function parseAuthResultHeader(input){
     if(typeof input !== 'string') throw new TypeError('must pass a string');
-    if(input === '') return {};
-    if(!isValidAuthResultHeader(input)) throw new RangeError('must pass a sanitised header');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = input.replace(/^Authentication-Results:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
 
     // initiaise the return value
     const ans = {
@@ -506,9 +566,6 @@ function compoundAuthenticationReason(code){
             details: 'no additional info'
         }
     };
-
-    // strip off the header name
-    let headerVal = input.replace(/^Authentication-Results:[ ]/, '');
 
     // split the value on semi-colon to get the various parts
     const headerParts = headerVal.trim().split(/;[ ]?/);
