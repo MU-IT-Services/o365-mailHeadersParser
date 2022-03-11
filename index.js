@@ -334,7 +334,7 @@ $.when( $.ready ).then(function() {
                     $compAuthLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No Compound Auhentication details found in <code>Authentication-Results</code> header'));
                     break;
                 default:
-                    $compAuthLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+                    $compAuthLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.compoundAuthentication.result}</code>`));
             }
             $securityAnalysisUL.append($compAuthLI);
 
@@ -381,7 +381,7 @@ $.when( $.ready ).then(function() {
                     $spfLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No SPF details found in <code>Authentication-Results</code> header'));
                     break;
                 default:
-                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.spf.result}</code>'));
             }
             $securityAnalysisUL.append($spfLI);
 
@@ -403,7 +403,7 @@ $.when( $.ready ).then(function() {
                     $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
                     break;
                 default:
-                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+                    $dkimLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dkim.result}</code>`));
             }
             $securityAnalysisUL.append($dkimLI);
 
@@ -426,11 +426,21 @@ $.when( $.ready ).then(function() {
                     $dmarcLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dmarc.result));
                     appendDetails($dmarcLI, securityDetails.dmarc);
                     break;
+                case 'temperror':
+                    $dmarcLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
+                    appendInfo($dmarcLI, 'DMARC processing failed because of a temporary problem, usually a DNS lookup failure');
+                    appendDetails($dmarcLI, securityDetails.dmarc);
+                    break;
+                case 'permerror':
+                    $dmarcLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
+                    appendInfo($dmarcLI, "DMARC processing failed because of a problem retrieving or processing the DNS record. This usually happens when there is a syntax error in the record, or, when the domain name doesn't reslove on the public internet (e.g. cron on a host without a public DNS name).");
+                    appendDetails($dmarcLI, securityDetails.dmarc);
+                    break;
                 case 'unknown':
-                    $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+                    $dmarcLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
                     break;
                 default:
-                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to Parse'));
+                    $dmarcLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dmarc.result}</code>`));
             }
             $securityAnalysisUL.append($dmarcLI);
         }else{
