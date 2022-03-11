@@ -469,7 +469,6 @@ $.when( $.ready ).then(function() {
             const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
             const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
             const bclDesc = bclMeaning(securityDetails.bulkMailScore);
-            console.log(bclDesc);
             $('.code', $bcl).text(securityDetails.bulkMailScore);
             $('.meaning', $bcl).text(bclDesc);
             if(bclDesc === 'not from bulk mail sender' || bclDesc.includes('few user complaints')){
@@ -570,7 +569,7 @@ $.when( $.ready ).then(function() {
  */
 function sanitiseMailHeader(input){
     if(typeof input !== 'string') throw new TypeError('requires a string');
-    return input.trim().replace(/[\s]+/g, ' ');
+    return input.replace(/[\s]+/g, ' ').trim();
 }
 
 /**
@@ -724,7 +723,7 @@ function sclMeaning(scl = -2){ // force to an invalid value of none passed
     let headerVal = sanitiseMailHeader(input);
 
     // strip off the header name (if present)
-    headerVal = input.replace(/^Authentication-Results:[ ]/, '');
+    headerVal = headerVal.replace(/^Authentication-Results:[ ]/, '');
 
     // if the header has no value, return an empty object
     if(headerVal === '') return {};
@@ -757,6 +756,9 @@ function sclMeaning(scl = -2){ // force to an invalid value of none passed
 
     // process each part
     for(const headerPart of headerParts){
+        // skip empty part caused by trailing ;
+        if(headerPart === '') continue;
+
         // get the part name and act appropriatey
         const headerPartMatch = headerPart.match(/^(\w+)=(\w+)[ ]?(.*)$/);
         if(headerPartMatch){
@@ -851,14 +853,14 @@ function parseForefrontSpamReportHeader(input){
     let headerVal = sanitiseMailHeader(input);
 
     // strip off the header name (if present)
-    headerVal = input.replace(/^X-Forefront-Antispam-Report:[ ]/, '');
+    headerVal = headerVal.replace(/^X-Forefront-Antispam-Report:[ ]/, '');
 
     // if the header has no value, return an empty object
     if(headerVal === '') return {};
 
     // break the header down into its parts
     const header = {};
-    let headerFields = headerVal.split(';');
+    let headerFields = headerVal.split(/;[ ]?/);
     for(const field of headerFields){
         if(field === '') continue;
         const fieldMatch = field.match(/^(\w+):(.*)$/)
@@ -919,7 +921,7 @@ function parseMicrosoftAntiSpamHeader(input){
     let headerVal = sanitiseMailHeader(input);
 
     // strip off the header name (if present)
-    headerVal = input.replace(/^X-Microsoft-Antispam:[ ]/, '');
+    headerVal = headerVal.replace(/^X-Microsoft-Antispam:[ ]/, '');
 
     // if the header has no value, return an empty object
     if(headerVal === '') return {};
