@@ -293,6 +293,7 @@ $.when( $.ready ).then(function() {
         $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
         if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
         if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
+        $basicsUL.append(generateBasicsLI('To', headers.to? headers.to.value : 'UNKNOWN').addClass('fw-bold'));
 
         // render the security summary
         $securityAnalysisUL.empty();
