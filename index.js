@@ -13,7 +13,8 @@ const ADDRESSING_HEADERS = [
     'Reply-To',
     'Return-Path',
     'Delivered-To',
-    'Message-ID'
+    'Message-ID',
+    'X-MS-Exchange-Organization-Network-Message-Id'
 ];
 
 /**
@@ -57,7 +58,8 @@ for(const header of ROUTING_HEADERS) {
     'X-Forefront-Antispam-Report',
     'X-Microsoft-Antispam',
     'Received-SPF',
-    'DKIM-Signature'
+    'DKIM-Signature',
+    'Authentication-Results-Original'
 ];
 
 /**
@@ -247,6 +249,7 @@ $.when( $.ready ).then(function() {
         // genereate the security report
         const securityDetails = {
             ...parseAuthResultHeader(headers.authentication_results.value),
+            ...parseOriginalAuthResultHeader(headers.authentication_results_original.value),
             ...parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value),
             ...parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value)
         };
@@ -299,6 +302,7 @@ $.when( $.ready ).then(function() {
         $basicsUL.append(generateBasicsLI('To', headers.to? headers.to.value : 'UNKNOWN').addClass('fw-bold'));
         if (headers['delivered-to']) $basicsUL.append(generateBasicsLI('Also Delivered To', headers['delivered-to'].value));
         $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
+        $basicsUL.append(generateBasicsLI('MS Network Message ID', headers['x-ms-exchange-organization-network-message-id']? headers['x-ms-exchange-organization-network-message-id'].value : 'UNKNOWN'));
 
         // render the security summary
         $securityAnalysisUL.empty();
@@ -455,6 +459,7 @@ $.when( $.ready ).then(function() {
 
         // next the spam report header
         if(securityDetails.spamReportHeaderSpecified){
+            // start with the spam score
             const $spamScoreLI = $('<li>').addClass('list-group-item').html('<strong>Spam Filter:</strong> ');
             const $scl = $('<span>').addClass('badge').html('SCL <span class="code font-monospace"></span> — <span class="meaning"></span>');
             const sclDesc = sclMeaning(securityDetails.spamScore);
@@ -476,11 +481,42 @@ $.when( $.ready ).then(function() {
                 $spamScoreLI.append(' ').append($('<span>').text(securityDetails.spamFilterAction));
             }
             $securityAnalysisUL.append($spamScoreLI);
+            
+            // finish with the quarantine info
+            const $quarantineLI = $('<li>').addClass('list-group-item').html('<strong>Quarantine Details:</strong> ');
+            const $quarantinedBadge = $('<span>').addClass('badge');
+            if(securityDetails.releasedFromQuarantine){
+                // the mail was relesed from quarantine
+                $quarantinedBadge.text('Released from Quarantine').addClass('bg-warning');
+            }else{
+                // the mail was not quarantined
+                $quarantinedBadge.text('Not Quarantined').addClass('bg-success');
+            }
+            $quarantineLI.append($quarantinedBadge);
+            if(securityDetails.releasedFromQuarantine){
+                if(securityDetails.OriginalAuthenticationResultsHeaderSpecified){
+                    const $originalAuthResult = $('<span>').text(securityDetails.originalAuthResult).addClass('badge');
+                    switch(securityDetails.originalAuthResult){
+                        case 'fail':
+                            $originalAuthResult.addClass('bg-error');
+                            break;
+                        case 'pass':
+                            $originalAuthResult.addClass('bg-success');
+                            break;
+                        default:
+                            $originalAuthResult.addClass('bg-danger');
+                    }
+                    $quarantineLI.append($('<p>').text('Pre-quarantine Authentication Result: ').addClass('text-muted m-0').append($originalAuthResult));
+                }else{
+                    $quarantineLI.append($('<p>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic m-0'));
+                }
+            }
+            $securityAnalysisUL.append($quarantineLI);
         }else{
             $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Forefront-Antispam-Report</code> header found'));
         }
 
-        // finally the bulk mail header
+        // next the bulk mail header
         if(securityDetails.bulkMailReportHeaderSpecified){
             const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
             const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
@@ -837,6 +873,50 @@ function sclMeaning(scl = -2){ // force to an invalid value of none passed
 }
 
 /**
+ * Parse an original authentication results header (pre-quarantine authentication result).
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   OriginalAuthenticationResultsHeaderSpecified: true,
+ *   originalAuthResult: 'unknown'
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+ function parseOriginalAuthResultHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = headerVal.replace(/^Authentication-Results-Original:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
+
+    // initiaise the return value
+    const ans = {
+        OriginalAuthenticationResultsHeaderSpecified: true,
+        originalAuthResult: 'unknown'
+    };
+
+    // try extract the auth result
+    const authResultMatch = headerVal.match(/\bauth=(\w+)\b/);
+    if(authResultMatch){
+        ans.originalAuthResult = authResultMatch[1];
+    }else{
+        console.debug('failed to parse original authentiation result header', headerVal);
+    }
+    
+    //return the result
+    return ans;
+}
+
+/**
  * Parse a sanitised Office365 Forefront Span Report Header.
  * 
  * @see sanitiseMailHeader
@@ -856,7 +936,8 @@ function sclMeaning(scl = -2){ // force to an invalid value of none passed
  *   spamScore: 1,
  *   spamFilterAction: 'none',
  *   spoofingDetected: 'none',
- *   flaggedDueToUserComplaints: false
+ *   flaggedDueToUserComplaints: false,
+ *   releasedFromQuarantine: false
  * }
  * ```
  * @throws {TypeError} A Type Error is thrown if a string is not passed.
@@ -901,7 +982,8 @@ function parseForefrontSpamReportHeader(input){
         spamScore: parseInt(header.SCL) || -1,
         spamFilterAction: SPAM_FILTER_ACTION_CODES[header.SFV] ? SPAM_FILTER_ACTION_CODES[header.SFV] : 'none',
         spoofingDetected: 'none',
-        flaggedDueToUserComplaints: header.SRV == 'BULK' ? true : false
+        flaggedDueToUserComplaints: header.SRV == 'BULK' ? true : false,
+        releasedFromQuarantine: header.SFV == 'SKQ' ? true : false
     };
     if(header.IPV === 'CAL'){
         ans.sender.ipReputation = 'allow-listed';
