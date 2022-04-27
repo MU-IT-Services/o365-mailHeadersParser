@@ -1,8 +1,7 @@
 // data
 
 /**
- * All the headers considered to be related to mail addressing in the order they
- * should be displayed.
+ * All the headers considered to be related to mail addressing.
  * 
  * @type {string[]}
  */
@@ -10,7 +9,8 @@ const ADDRESSING_HEADERS = [
     'To',
     'From',
     'Reply-To',
-    'Return-Path'
+    'Return-Path',
+    'Delivered-To'
 ];
 
 /**
@@ -25,8 +25,7 @@ for(const header of ADDRESSING_HEADERS){
 }
 
 /**
- * All the headers considered to be related to mail routing in the order they
- * should be displayed.
+ * All the headers considered to be related to mail routing.
  * 
  * @type {string[]}
  */
@@ -46,15 +45,15 @@ for(const header of ROUTING_HEADERS) {
 }
 
 /**
- * All the headers considered to be related to mail seurity in the order they
- * should be displayed.
+ * All the headers considered to be related to security/spam filtering.
  * 
  * @type {string[]}
  */
  const SECURITY_HEADERS = [
     'Authentication-Results',
     'X-Forefront-Antispam-Report',
-    'X-Microsoft-Antispam'
+    'X-Microsoft-Antispam',
+    'Received-SPF'
 ];
 
 /**
@@ -294,6 +293,7 @@ $.when( $.ready ).then(function() {
         if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
         if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
         $basicsUL.append(generateBasicsLI('To', headers.to? headers.to.value : 'UNKNOWN').addClass('fw-bold'));
+        if (headers['delivered-to']) $basicsUL.append(generateBasicsLI('Also Delivered To', headers['delivered-to'].value));
 
         // render the security summary
         $securityAnalysisUL.empty();
