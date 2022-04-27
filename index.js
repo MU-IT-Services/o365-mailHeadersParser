@@ -6,11 +6,14 @@
  * @type {string[]}
  */
 const ADDRESSING_HEADERS = [
+    'Date',
+    'Subject',
     'To',
     'From',
     'Reply-To',
     'Return-Path',
-    'Delivered-To'
+    'Delivered-To',
+    'Message-ID'
 ];
 
 /**
@@ -53,7 +56,8 @@ for(const header of ROUTING_HEADERS) {
     'Authentication-Results',
     'X-Forefront-Antispam-Report',
     'X-Microsoft-Antispam',
-    'Received-SPF'
+    'Received-SPF',
+    'DKIM-Signature'
 ];
 
 /**
@@ -294,6 +298,7 @@ $.when( $.ready ).then(function() {
         if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
         $basicsUL.append(generateBasicsLI('To', headers.to? headers.to.value : 'UNKNOWN').addClass('fw-bold'));
         if (headers['delivered-to']) $basicsUL.append(generateBasicsLI('Also Delivered To', headers['delivered-to'].value));
+        $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
 
         // render the security summary
         $securityAnalysisUL.empty();
