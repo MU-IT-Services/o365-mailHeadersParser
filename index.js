@@ -286,7 +286,9 @@ $.when( $.ready ).then(function() {
             $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
         }
 
+        //
         // render the basics
+        //
         $basicsUL.empty();
         const generateBasicsLI = (n, v)=>{
             const $header = $('<li class="list-group-item"><code class="header-name"></code>: <span class="font-monospace header-value"></span></li>');
@@ -304,7 +306,9 @@ $.when( $.ready ).then(function() {
         $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
         $basicsUL.append(generateBasicsLI('MS Network Message ID', headers['x-ms-exchange-organization-network-message-id']? headers['x-ms-exchange-organization-network-message-id'].value : 'UNKNOWN'));
 
+        //
         // render the security summary
+        //
         $securityAnalysisUL.empty();
 
         // a local function to render an info tooltip within the security analysis
@@ -538,7 +542,16 @@ $.when( $.ready ).then(function() {
             $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Microsoft-Antispam</code> header found'));
         }
 
+        // end with the details to submit the mail to Microsoft for review
+        if(headers['x-ms-exchange-organization-network-message-id']){
+            const $submitToMSLI = $('<li>').addClass('list-group-item list-group-item-info')
+            $submitToMSLI.html(`<i class="bi bi-info-circle"></i> If this mail was mishandled by Micorosft's filters you can submit it for review using the Network Message ID <code>${headers['x-ms-exchange-organization-network-message-id'].value}</code>. <a href="https://security.microsoft.com/reportsubmission?viewid=admin" rel="nofollow" target="_blank" class="btn btn-outline-primary btn-sm">Submit to MS <i class="bi bi-box-arrow-up-right"></i></a>`);
+            $securityAnalysisUL.append($submitToMSLI);
+        }
+
+        //
         // render the custom headers
+        //
         $customHeadersUL.empty();
         if(customPrefix.length > 0){
             if(customHeaderNames.length > 0){
