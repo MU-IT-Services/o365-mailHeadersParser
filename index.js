@@ -298,13 +298,36 @@ $.when( $.ready ).then(function() {
         };
         $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
         $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
-        $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
-        if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
-        if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
-        $basicsUL.append(generateBasicsLI('To', headers.to? headers.to.value : 'UNKNOWN').addClass('fw-bold'));
-        if (headers['delivered-to']) $basicsUL.append(generateBasicsLI('Also Delivered To', headers['delivered-to'].value));
+        //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
+        //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
+        //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
+        const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
+        $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
+        if (headers['reply-to']){
+            if ((headers['reply-to'].value == headers.from.value)){
+                const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
+                $fromLI.append(' ').append($replyTo);
+            }else{
+                const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
+                $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
+                $fromLI.append(' ').append($replyTo);
+            }
+        }
+        if (headers['return-path']){
+            const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
+            $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
+            $fromLI.append(' ').append($returnPath);
+        }
+        $basicsUL.append($fromLI);
+        const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
+        $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
+        if (headers['delivered-to']){
+            const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
+            $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
+            $toLI.append(' ').append($deliveredTo);
+        } 
+        $basicsUL.append($toLI);
         $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
-        $basicsUL.append(generateBasicsLI('MS Network Message ID', headers['x-ms-exchange-organization-network-message-id']? headers['x-ms-exchange-organization-network-message-id'].value : 'UNKNOWN'));
 
         //
         // render the security summary
@@ -354,7 +377,7 @@ $.when( $.ready ).then(function() {
 
             // local function for adding details to SFP, DKIM, or DMARC
             const appendDetails = ($li, result)=>{
-                $li.append(' ').append($('<span>').addClass('text-muted font-monospace').text(result.details));
+                $li.append('<br>').append($('<small>').addClass('text-muted font-monospace').text(result.details));
             };
 
             // add SPF
@@ -510,9 +533,9 @@ $.when( $.ready ).then(function() {
                         default:
                             $originalAuthResult.addClass('bg-danger');
                     }
-                    $quarantineLI.append($('<p>').text('Pre-quarantine Authentication Result: ').addClass('text-muted m-0').append($originalAuthResult));
+                    $quarantineLI.append('<br>').append($('<small>').text('Pre-quarantine Authentication Result: ').addClass('text-muted').append($originalAuthResult));
                 }else{
-                    $quarantineLI.append($('<p>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic m-0'));
+                    $quarantineLI.append('<br>').append($('<small>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic'));
                 }
             }
             $securityAnalysisUL.append($quarantineLI);
