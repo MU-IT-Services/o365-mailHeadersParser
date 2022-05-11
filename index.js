@@ -248,10 +248,10 @@ $.when( $.ready ).then(function() {
 
         // genereate the security report
         const securityDetails = {
-            ...parseAuthResultHeader(headers.authentication_results.value),
-            ...parseOriginalAuthResultHeader(headers.authentication_results_original.value),
-            ...parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value),
-            ...parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value)
+            ...(headers.authentication_results ? parseAuthResultHeader(headers.authentication_results.value) : {}),
+            ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
+            ...(headers.x_forefront_antispam_report ? parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value) : {}),
+            ...(headers.x_microsoft_antispam ? parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value) : {})
         };
         console.debug(securityDetails);
 
