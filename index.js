@@ -1,7 +1,37 @@
-// data
+//
+// === JSDoc Type Defs ===
+//
 
 /**
- * All the headers considered to be related to mail addressing.
+ * The unique ID  for a header, formed by forcing the header to lower case and
+ * replacing dashes with underscores.
+ * @typedef {string} HeaderID
+ */
+
+/**
+ * An object representing a mail header.
+ * @typedef {Object} HeaderObject
+ * @property {string} name - The header name as it appeared in the email source.
+ * @property {string} value - The header's value.
+ */
+
+/**
+ * An object representing all the mail headers for an email.
+ * @typedef {Object} HeaderSet
+ * @property {HeaderObject[]} list - The headers in chronological order, i.e.
+ * from the bottom to the top of the headers section in the email source.
+ * @property {HeaderObject[]} listAsReceived - The headers in the order they
+ * appear in the headers section of the email source.
+ * @property {<HeaderID, HeaderObject[]>} byHeaderID - Arrays of instances of headers
+ * (ordered from bottom to top), indexed by header ID.
+ */
+
+//
+// === Data Definition Constants ===
+//
+
+/**
+ * All the header names considered to be related to mail addressing.
  * 
  * @type {string[]}
  */
@@ -18,7 +48,7 @@ const ADDRESSING_HEADERS = [
 ];
 
 /**
- * A lookup of the headers to be marked as addressing-related.
+ * A lookup of the header names to be marked as addressing-related.
  * 
  * @type {object.<string, boolean>}
  */
@@ -29,7 +59,7 @@ for(const header of ADDRESSING_HEADERS){
 }
 
 /**
- * All the headers considered to be related to mail routing.
+ * All the header namess considered to be related to mail routing.
  * 
  * @type {string[]}
  */
@@ -38,7 +68,7 @@ for(const header of ADDRESSING_HEADERS){
 ];
 
 /**
- * A lookup of the headers to be marked as routing-related.
+ * A lookup of the header names to be marked as routing-related.
  * 
  * @type {object.<string, boolean>}
  */
@@ -49,7 +79,7 @@ for(const header of ROUTING_HEADERS) {
 }
 
 /**
- * All the headers considered to be related to security/spam filtering.
+ * All the header names considered to be related to security/spam filtering.
  * 
  * @type {string[]}
  */
@@ -63,7 +93,7 @@ for(const header of ROUTING_HEADERS) {
 ];
 
 /**
- * A lookup of the headers to be marked as security headers.
+ * A lookup of the header names to be marked as security headers.
  * 
  * @type {object.<string, boolean>}
  */
@@ -114,9 +144,208 @@ const SPAM_FILTER_ACTION_CODES = {
     SKQ: 'message released from quarantine',
     SKS: 'scan skipped because already marked as spam by mail rule',
     SPM: 'marked as spam'
+};
+
+//
+// === Utility Functions ===
+//
+
+/**
+ * Check if a given value is a valid header name.
+ * 
+ * @param {*} val - The value to check.
+ * @returns {boolean}
+ */
+function isHeaderName(val){
+    if(typeof val !== 'string') return false;
+    return val.match(/^[-a-z0-9]+$/i) ? true : false;
 }
 
-// Document ready handler
+/**
+ * Check if a given value is a valid header object.
+ * 
+ * @param {*} val - The value to check.
+ * @returns {boolean}
+ */
+function isHeaderObject(val){
+    if(typeof val !== 'object') return  false;
+    if(!isHeaderName(val.name)) return false;
+    if(typeof val.value !== 'string') return false;
+    return true;
+}
+
+/**
+ * Check if a given value is a header ID.
+ * 
+ * @param {*} val - The value to check.
+ * @returns {boolean}
+ */
+function isHeaderID(val){
+    if(typeof val !== 'string') return false;
+    return val.match(/^a-z0-9_$/) ? true : false;
+}
+
+/**
+ * Convert a header name to a header ID.
+ * 
+ * @param {string} headerName
+ * @returns {HeaderID}
+ * @throws {TypeError} A Type Error is thrown if the header name is not passed
+ * or is not a string.
+ * @throws {RangeError} A Range Error is thrown if a string is passed that's
+ * not a valid header name.
+ */
+function headerNameToID(headerName){
+    if(typeof headerName !== 'string'){
+        throw new TypeError('header name is required and must be a string');
+    }
+    if(!isHeaderName(headerName)){
+        throw new RangeError('invalid header name, can only contain letters, numbers, and dashes');
+    }
+    let ans = headerName.toLowerCase(); // start by lowercasing the name
+    ans = ans.replaceAll('-', '_'); // replace dashes with undersores
+    return ans;
+}
+
+/**
+ * Clone a header object.
+ * 
+ * Naively creates a new object and copies the `name` and `value` attributes to
+ * it.
+ * 
+ * @param {HeaderObject} headerObject - The header object to clone.
+ * @returns {HeaderObject}
+ * @throws {TypeError} A Type Error is thrown if the paramter is not an object.
+ */
+function cloneHeader(headerObject){
+    if(!isHeaderObject(headerObject)) throw new TypeError('must pass a valid header object');
+    return {
+        name: headerObject.name,
+        value: headerObject.value
+    };
+}
+
+//
+// === Header Processing Functions ===
+//
+
+/**
+ * Parse the headers or the entire raw source of an email into a header set.
+ * 
+ * @param {string} source
+ * @returns {HeaderSet}
+ * @throws {TypeError} A Type Error is thrown on invalid args.
+ */
+function parseHeaders(source){
+    if(typeof source !== 'string') throw new TypeError('must pass a string to parse');
+    
+    // create an empty data structure
+    const ans = {
+        list: [],
+        listAsReceived: [],
+        byHeaderID: {}
+    };
+
+    // clean the source string
+    let rawHeaders = source.trim(); // start by removing any leading or trailing white space
+    rawHeaders.replace(/\n\r|\r\n/g, '\n'); // replace windows line endings with plain \n
+
+    // split the cleaned source into lines
+    const headerLines = rawHeaders.split('\n');
+
+    // strip away an leading empty lines
+    while(headerLines > 0){
+        if(headerLines[0].match(/^\s*$/)) headerLines.shift();
+    }
+
+    // loop over each line to parse out the headers
+    const wipHeader = { name: '', value: '' };
+    const storeWIPHeader = ()=>{
+        if(wipHeader.name.length > 0){
+            // store the finished header
+            ans.listAsReceived.push({...wipHeader});
+
+            // start a new WIP header
+            wipHeader.name = '';
+            wipHeader.value = '';
+        }
+    };
+    while(headerLines.length > 0){
+        // shift the first remaning line
+        const l = headerLines.shift();
+
+        // if we reach a blank line, stop, we're at the end of the headers and into the body
+        if(l.match(/^\s*$/)){
+            break;
+        }
+
+        // see if we're starting a new header (no leading spaces) or continuing one
+        if(l.match(/^\w/)){
+            // new header
+
+            // store the previous header
+            storeWIPHeader();
+
+            // spit the header name from the value
+            const headerMatch = l.match(/^([-\w\d]+):[ ]?(.*)/);
+            if(headerMatch){
+                if(isHeaderName(headerMatch[1])){
+                    wipHeader.name = headerMatch[1];
+                    wipHeader.value = headerMatch[2] || '';
+                }else{
+                    console.warn('skipping invalid header name', headerMatch[1]);    
+                }
+            }else{
+                console.warn('failed to parse header line', l);
+            }
+        }else if(l.match(/^\s+/)){
+            // continuing the previous header
+
+            // append the line to the current header
+            wipHeader.value += ' ' + l.trim();
+        }else{
+            console.warn('failed to interpret header line', l);
+        }
+    }
+    // store the last header
+    storeWIPHeader();
+
+    // loop over the list to build out the rest of the data structure
+    for(const header of ans.listAsReceived){
+        // prepend the header to the chronological list
+        ans.list.unshift(cloneHeader(header));
+
+        // store in the lookup by ID
+        const headerID = headerNameToID(header.name);
+        if(ans.byHeaderID[headerID]){
+            ans.byHeaderID[headerID].unshift(cloneHeader(header));
+        }else{
+            ans.byHeaderID[headerID] = [cloneHeader(header)];
+        }
+    }
+
+    // return the assembled data structure
+    return ans;
+}
+
+//
+// === Global Variables ===
+//
+
+/**
+ * The data structure that will hold the headers once they are loaded.
+ * 
+ * @type {HeaderSet}
+ */
+const LOADED_HEADERS = {
+    list: [],
+    listAsReceived: [],
+    byHeaderID: {}
+};
+
+//
+// === The Document ready handler ===
+//
 $.when( $.ready ).then(function() {
     const $fullHeadersTA = $('#fullHeaders-ta');
     const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
@@ -223,6 +452,30 @@ $.when( $.ready ).then(function() {
         }
         // store any as-yet unsaved WIP header
         storeWIPHeader();
+
+        // build the global data structure
+        LOADED_HEADERS.list = []; // empty the header list
+        LOADED_HEADERS.listAsReceived = []; // empty the list in original order
+        LOADED_HEADERS.byHeaderID = {}; // empty the lookup by ID
+        for(const header of headerList){
+            // make sure we have a valid header object
+            if(!isHeaderObject(header)){
+                console.warn('skipping invalid header', header);
+                continue;
+            }
+            
+            // store a clone in the appropriate end of each list
+            LOADED_HEADERS.list.unshift(cloneHeader(header));
+            LOADED_HEADERS.listAsReceived.push(cloneHeader(header));
+
+            // store in the lookup by ID
+            const headerID = headerNameToID(header.name);
+            if(LOADED_HEADERS.byHeaderID[headerID]){
+                LOADED_HEADERS.byHeaderID[headerID].unshift(cloneHeader(header));
+            }else{
+                LOADED_HEADERS.byHeaderID[headerID] = [cloneHeader(header)];
+            }
+        }
 
         // also store the headers in lower case, and in lower-case with the dashes replaced with underscores
         // while looping over all the headers, also save any matching custom headers
