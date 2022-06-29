@@ -358,6 +358,7 @@ let LOADED_HEADERS = {
  *   prefix for highlighting custom headers of interest.
  * @property {jQuery} form.parseButton — The button to process the input.
  * @property {Object} output — Output regions.
+ * @property {Object} alerts - The div where output alerts should be appended.
  * @property {jQuery} basicsUL - The unordered list to inject the basics into.
  * @property {jQuery} securityAnalysisUL - The unordered list to inject the
  *   security analysis into.
@@ -371,15 +372,15 @@ let LOADED_HEADERS = {
 const $UI = {
     initialised: false,
     form: {
-        source: null,
-        customHeadersPrefix: null,
-        parseButton: null
+        source: $(),
+        customHeadersPrefix: $(),
+        parseButton: $()
     },
     output: {
-        basicsUL: null,
-        securityAnalysisUL: null,
-        customHeadersUL: null,
-        securityReportDiv: null
+        basicsUL: $(),
+        securityAnalysisUL: $(),
+        customHeadersUL: $(),
+        securityReportDiv: $()
     }
 };
 
@@ -390,6 +391,7 @@ $.when( $.ready ).then(function() {
     $UI.form.source = $('#fullHeaders-ta');
     $UI.form.customHeadersPrefix = $('#customHeadersPrefix-tb');
     $UI.form.parseBtn = $('#process_btn');
+    $UI.output.alerts = $('#parseAlerts_div');
     $UI.output.basicsUL = $('#basics-ul');
     $UI.output.securityAnalysisUL = $('#securityAnalysis-ul');
     $UI.output.customHeadersUL = $('#customHeaders-ul');
@@ -404,45 +406,70 @@ $.when( $.ready ).then(function() {
 
     // add an event handler to the parse button
     $UI.form.parseBtn.click(()=>{
+        // reset the loaded headers data structure
+        LOADED_HEADERS = {
+            list: [],
+            listAsReceived: [],
+            byHeaderID: {}
+        };
+
+        // blank all the output areas
+        $UI.output.alerts.empty();
+        $UI.output.basicsUL.empty().append(generatePlaceholderLI());
+        $UI.output.securityAnalysisUL.empty().append(generatePlaceholderLI());
+        $UI.output.customHeadersUL.empty().append(generatePlaceholderLI());
+        $UI.output.securityReportDiv.empty().append(generatePlaceholderAlert());
+        $UI.output.allHeadersUL.empty().append(generatePlaceholderLI());
+
         // parse the source
+        let newHeaders = {};
         try{
-            LOADED_HEADERS = parseSource($UI.form.source.val());
+            newHeaders = parseSource($UI.form.source.val());
             console.debug(`successfully parsed source, found ${LOADED_HEADERS.list.length} header(s)`, LOADED_HEADERS);
         }catch(err){
+            showParseError('Failed to parse source 🙁');
             console.warn('failed to parse email source with error:', err);
             return false;
         }
 
-    //     // genereate the security report
-    //     const securityDetails = {
+        // load the other form data
+        customPrefix = $UI.form.customHeadersPrefix.val();
+
+        // sanity check the new headers
+        if(newHeaders.list.length < 1){
+            showParseError('No headers found!');
+            return false;
+        }
+
+        // all is well, so save the new headers
+        LOADED_HEADERS = newHeaders;
+
+        // genereate the security report
+        const securityDetails = {
     //         ...(headers.authentication_results ? parseAuthResultHeader(headers.authentication_results.value) : {}),
     //         ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
     //         ...(headers.x_forefront_antispam_report ? parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value) : {}),
     //         ...(headers.x_microsoft_antispam ? parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value) : {})
-    //     };
-    //     console.debug(securityDetails);
+        };
+        console.debug(securityDetails);
 
-    //     // render all the headers
-    //     $allHeadersUL.empty();
-    //     if(headerList. length > 0){
-    //         for(const header of headerList){
-    //             const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-    //             $('.header-name', $header).text(header.name);
-    //             $('.header-value', $header).text(header.value);
-    //             if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
-    //                 $header.addClass('bg-danger bg-opacity-10');
-    //             }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-    //                 $header.addClass('bg-warning bg-opacity-10');
-    //             }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-    //                 $header.addClass('bg-primary bg-opacity-10');
-    //             }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
-    //                 $header.addClass('bg-success bg-opacity-10');
-    //             }
-    //             $allHeadersUL.append($header);    
-    //         }
-    //     }else{
-    //         $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
-    //     }
+        // render all the headers
+        $UI.output.allHeadersUL.empty();
+        for(const header of LOADED_HEADERS.listAsReceived){
+            const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+            $('.header-name', $header).text(header.name);
+            $('.header-value', $header).text(header.value);
+            if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                $header.addClass('bg-danger bg-opacity-10');
+            }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                $header.addClass('bg-warning bg-opacity-10');
+            }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+                $header.addClass('bg-primary bg-opacity-10');
+            }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
+                $header.addClass('bg-success bg-opacity-10');
+            }
+            $UI.output.allHeadersUL.append($header);    
+        }
 
     //     // render the full security report
     //     $securityReportDiv.empty();
@@ -768,23 +795,52 @@ $.when( $.ready ).then(function() {
 //
 
 //
+// -- UI Utility Functions --
+//
+
+/**
+ * Generate a placeholder list item for when no headers have been parsed.
+ * 
+ * @returns {jQuery}
+ */
+function generatePlaceholderLI(){
+    $ans = $('<li>').addClass('list-group-item list-group-item-warning');
+    $ans.html('<i class="bi bi-exclamation-triangle-fill"></i> <strong>No Headers Processed Yet</strong> — use the form to enter headers or raw source for processing');
+    return $ans;
+}
+
+/**
+ * Generate a placeholder alert for when no headers have been parsed.
+ * 
+ * @returns {jQuery}
+ */
+ function generatePlaceholderAlert(){
+    $ans = $('<div>').addClass('alert alert-warning mb-0');
+    $ans.html('<i class="bi bi-exclamation-triangle-fill"></i> <strong>No Headers Processed Yet</strong> — use the form to enter headers or raw source for processing');
+    return $ans;
+}
+
+/**
+ * Output a parse error alert.
+ * 
+ * @param {string} errorText
+ */
+function showParseError(errorText){
+    $alert = $('<div>').addClass('alert alert-danger').text(errorText);
+    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
+    $UI.output.alerts.append($alert);
+}
+
+//
 // -- Form Validation Functions --
 //
 
 /**
  * Validate the input form.
  * 
- * This function logs a warning and returns `false` if there's a problem.
- * 
  * @return {boolean}
  */
  function validateInputForm(){
-    // make sure the jQuery objects have been loaded
-    if(!$UI.initialised){
-        console.warn("form can't be validated until the jQuery references have been loaded into $UI");
-        return false;
-    }
-
     // validate each input
     let numError = 0;
     let numMissingRequired = 0;
