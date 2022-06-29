@@ -19,11 +19,15 @@
  * An object representing all the mail headers for an email.
  * @typedef {Object} HeaderSet
  * @property {HeaderObject[]} list - The headers in chronological order, i.e.
- * from the bottom to the top of the headers section in the email source.
+ *   from the bottom to the top of the headers section in the email source.
  * @property {HeaderObject[]} listAsReceived - The headers in the order they
- * appear in the headers section of the email source.
- * @property {<HeaderID, HeaderObject[]>} byHeaderID - Arrays of instances of headers
- * (ordered from bottom to top), indexed by header ID.
+ *   appear in the headers section of the email source.
+ * @property {<HeaderID, HeaderObject[]>} byHeaderID - Arrays of instances of
+ *   headers (ordered from bottom to top), indexed by header ID.
+ * @property {string} customPrefix - the prefix for headers to be considered
+ *   custom.
+ * @property {HeaderObject[]} listMatchingCustomPrefix - The headers that
+ *   matched the custom prefix ordered from bottom to top.
  */
 
 //
@@ -151,6 +155,21 @@ const SPAM_FILTER_ACTION_CODES = {
 //
 
 /**
+ * Generate an empty header set object.
+ * 
+ * @returns {HeaderSet}
+ */
+function generateBlankHeaderSet(){
+    return {
+        list: [],
+        listAsReceived: [],
+        byHeaderID: {},
+        customPrefix: '',
+        listMatchingCustomPrefix: []
+    };
+}
+
+/**
  * Check if a given value is a valid header name.
  * 
  * @param {*} val - The value to check.
@@ -233,18 +252,17 @@ function cloneHeader(headerObject){
  * Parse the headers or the entire raw source of an email into a header set.
  * 
  * @param {string} source
+ * @param {string} [customHeadersPrefix]
  * @returns {HeaderSet}
  * @throws {TypeError} A Type Error is thrown on invalid args.
  */
-function parseSource(source){
+function parseSource(source, customHeadersPrefix = ''){
     if(typeof source !== 'string') throw new TypeError('must pass a string to parse');
+    if(typeof customHeadersPrefix !== 'string') throw new TypeError('if passed, the custom header prefix must be a string');
     
-    // create an empty data structure
-    const ans = {
-        list: [],
-        listAsReceived: [],
-        byHeaderID: {}
-    };
+    // create an empty data structure and store the prefix
+    const ans = generateBlankHeaderSet();
+    ans.customPrefix = customHeadersPrefix;
 
     // clean the source string
     let rawHeaders = source.trim(); // start by removing any leading or trailing white space
@@ -311,6 +329,7 @@ function parseSource(source){
     storeWIPHeader();
 
     // loop over the list to build out the rest of the data structure
+    let customPrefixID = headerNameToID(customHeadersPrefix);
     for(const header of ans.listAsReceived){
         // prepend the header to the chronological list
         ans.list.unshift(cloneHeader(header));
@@ -321,6 +340,13 @@ function parseSource(source){
             ans.byHeaderID[headerID].unshift(cloneHeader(header));
         }else{
             ans.byHeaderID[headerID] = [cloneHeader(header)];
+        }
+
+        // if there is a custom prefix, check if the header matches it
+        if(customHeadersPrefix){
+            if(headerID.startsWith(customPrefixID)){
+                ans.listMatchingCustomPrefix.unshift(cloneHeader(header));
+            }
         }
     }
 
@@ -337,11 +363,7 @@ function parseSource(source){
  * 
  * @type {HeaderSet}
  */
-let LOADED_HEADERS = {
-    list: [],
-    listAsReceived: [],
-    byHeaderID: {}
-};
+let DATA = generateBlankHeaderSet();
 
 /**
  * A dictionary providing easy access to jQuery objects representing the
@@ -407,11 +429,7 @@ $.when( $.ready ).then(function() {
     // add an event handler to the parse button
     $UI.form.parseBtn.click(()=>{
         // reset the loaded headers data structure
-        LOADED_HEADERS = {
-            list: [],
-            listAsReceived: [],
-            byHeaderID: {}
-        };
+        DATA = generateBlankHeaderSet();
 
         // blank all the output areas
         $UI.output.alerts.empty();
@@ -424,16 +442,13 @@ $.when( $.ready ).then(function() {
         // parse the source
         let newHeaders = {};
         try{
-            newHeaders = parseSource($UI.form.source.val());
-            console.debug(`successfully parsed source, found ${LOADED_HEADERS.list.length} header(s)`, LOADED_HEADERS);
+            newHeaders = parseSource($UI.form.source.val(), $UI.form.customHeadersPrefix.val());
+            console.debug(`successfully parsed source, found ${DATA.list.length} header(s)`, DATA);
         }catch(err){
             showParseError('Failed to parse source 🙁');
             console.warn('failed to parse email source with error:', err);
             return false;
         }
-
-        // load the other form data
-        customPrefix = $UI.form.customHeadersPrefix.val();
 
         // sanity check the new headers
         if(newHeaders.list.length < 1){
@@ -442,7 +457,7 @@ $.when( $.ready ).then(function() {
         }
 
         // all is well, so save the new headers
-        LOADED_HEADERS = newHeaders;
+        DATA = newHeaders;
 
         // genereate the security report
         const securityDetails = {
@@ -453,23 +468,9 @@ $.when( $.ready ).then(function() {
         };
         console.debug(securityDetails);
 
-        // render all the headers
-        $UI.output.allHeadersUL.empty();
-        for(const header of LOADED_HEADERS.listAsReceived){
-            const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-            $('.header-name', $header).text(header.name);
-            $('.header-value', $header).text(header.value);
-            if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                $header.addClass('bg-danger bg-opacity-10');
-            }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                $header.addClass('bg-warning bg-opacity-10');
-            }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                $header.addClass('bg-primary bg-opacity-10');
-            }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
-                $header.addClass('bg-success bg-opacity-10');
-            }
-            $UI.output.allHeadersUL.append($header);    
-        }
+        // render the header lists
+        renderAllHeaders();
+        renderCustomHeaders();
 
     //     // render the full security report
     //     $securityReportDiv.empty();
@@ -765,25 +766,6 @@ $.when( $.ready ).then(function() {
     //         $submitToMSLI.html(`<i class="bi bi-info-circle"></i> If this mail was mishandled by Micorosft's filters you can submit it for review using the Network Message ID <code>${headers['x-ms-exchange-organization-network-message-id'].value}</code>. <a href="https://security.microsoft.com/reportsubmission?viewid=admin" rel="nofollow" target="_blank" class="btn btn-outline-primary btn-sm">Submit to MS <i class="bi bi-box-arrow-up-right"></i></a>`);
     //         $securityAnalysisUL.append($submitToMSLI);
     //     }
-
-    //     //
-    //     // render the custom headers
-    //     //
-    //     $customHeadersUL.empty();
-    //     if(customPrefix.length > 0){
-    //         if(customHeaderNames.length > 0){
-    //             for(const headerName of customHeaderNames){
-    //                 const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-    //                 $('.header-name', $header).text(headers[headerName].name);
-    //                 $('.header-value', $header).text(headers[headerName].value);
-    //                 $customHeadersUL.append($header);
-    //             }
-    //         }else{
-    //             $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${customPrefix}</code>`));
-    //         }
-    //     }else{
-    //         $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
-    //     }
     });
 
     // focus the source field
@@ -869,6 +851,57 @@ function showParseError(errorText){
     // default to disabling and return false
     $UI.form.parseBtn.prop('disabled', true);
     return false;
+}
+
+//
+// -- Rendering Functions --
+//
+
+/**
+ * Render the  full list of headers.
+ */
+function renderAllHeaders(){
+    // empty the header UL
+    $UI.output.allHeadersUL.empty();
+
+    // loop over all the loaded headers and append them to the UL
+    for(const header of DATA.listAsReceived){
+        const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+        $('.header-name', $header).text(header.name);
+        $('.header-value', $header).text(header.value);
+        if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
+            $header.addClass('bg-danger bg-opacity-10');
+        }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+            $header.addClass('bg-warning bg-opacity-10');
+        }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+            $header.addClass('bg-primary bg-opacity-10');
+        }else if(DATA.customPrefix.length > 0 && header.name.toLowerCase().startsWith(DATA.customPrefix.toLowerCase())){
+            $header.addClass('bg-success bg-opacity-10');
+        }
+        $UI.output.allHeadersUL.append($header);    
+    }
+}
+
+/**
+ * Render the highlighted custom headers, if any.
+ */
+function renderCustomHeaders(){
+    // empty the list
+    $UI.output.customHeadersUL.empty();
+    if(DATA.customPrefix.length > 0){
+             if(DATA.listMatchingCustomPrefix.length > 0){
+                for(const header of DATA.listMatchingCustomPrefix){
+                    const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+                    $('.header-name', $header).text(header.name);
+                    $('.header-value', $header).text(header.value);
+                    $UI.output.customHeadersUL.append($header);
+                }
+             }else{
+                 $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${DATA.customPrefix}</code>`));
+             }
+    }else{
+        $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
+    }
 }
 
 /**
