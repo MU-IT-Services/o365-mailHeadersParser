@@ -236,7 +236,7 @@ function cloneHeader(headerObject){
  * @returns {HeaderSet}
  * @throws {TypeError} A Type Error is thrown on invalid args.
  */
-function parseHeaders(source){
+function parseSource(source){
     if(typeof source !== 'string') throw new TypeError('must pass a string to parse');
     
     // create an empty data structure
@@ -337,563 +337,481 @@ function parseHeaders(source){
  * 
  * @type {HeaderSet}
  */
-const LOADED_HEADERS = {
+let LOADED_HEADERS = {
     list: [],
     listAsReceived: [],
     byHeaderID: {}
+};
+
+/**
+ * A dictionary providing easy access to jQuery objects representing the
+ * important UI elements.
+ * 
+ * This data structure is initialised in the document ready handler.
+ * 
+ * @type {Object}
+ * @property {boolean} initialised
+ * @property {Object} form - The form elements.
+ * @property {jQuery} form.source - The text area for entering the message
+ *   source or plain text headers.
+ * @property {jQuery} form.customHeadersPrefix - The text box to enter the
+ *   prefix for highlighting custom headers of interest.
+ * @property {jQuery} form.parseButton — The button to process the input.
+ * @property {Object} output — Output regions.
+ * @property {jQuery} basicsUL - The unordered list to inject the basics into.
+ * @property {jQuery} securityAnalysisUL - The unordered list to inject the
+ *   security analysis into.
+ * @property {jQuery} customHeadersUL - The unordered list to inject the custom
+ *   headers into.
+ * @property {jQuery} securityReportDiv - The `div` containing the security
+ *   report.
+ * @property {jQuery} allHeadersUL - The unordered list the full list of headers
+ *   should be injected into.
+ */
+const $UI = {
+    initialised: false,
+    form: {
+        source: null,
+        customHeadersPrefix: null,
+        parseButton: null
+    },
+    output: {
+        basicsUL: null,
+        securityAnalysisUL: null,
+        customHeadersUL: null,
+        securityReportDiv: null
+    }
 };
 
 //
 // === The Document ready handler ===
 //
 $.when( $.ready ).then(function() {
-    const $fullHeadersTA = $('#fullHeaders-ta');
-    const $customHeadersPrefixTB = $('#customHeadersPrefix-tb');
-    const $processBtn = $('#process_btn');
-    const $basicsUL = $('#basics-ul');
-    const $securityAnalysisUL = $('#securityAnalysis-ul');
-    const $customHeadersUL = $('#customHeaders-ul');
-    const $securityReportDiv = $('#securityReport-div');
-    const $allHeadersUL = $('#allHeaders-ul');
+    $UI.form.source = $('#fullHeaders-ta');
+    $UI.form.customHeadersPrefix = $('#customHeadersPrefix-tb');
+    $UI.form.parseBtn = $('#process_btn');
+    $UI.output.basicsUL = $('#basics-ul');
+    $UI.output.securityAnalysisUL = $('#securityAnalysis-ul');
+    $UI.output.customHeadersUL = $('#customHeaders-ul');
+    $UI.output.securityReportDiv = $('#securityReport-div');
+    $UI.output.allHeadersUL = $('#allHeaders-ul');
+    $UI.initialised = true;
 
-    // local functions to validate the two forms
-    const validateHeadersFn = ()=>{ validateHeadersForm($fullHeadersTA, $customHeadersPrefixTB) };
+    // add input form validation
+    $UI.form.source.on('input', validateInputForm);
+    $UI.form.customHeadersPrefix.on('input', validateInputForm);
+    validateInputForm();
 
-    // add form validation
-    $fullHeadersTA.on('input', validateHeadersFn);
-    $customHeadersPrefixTB.on('input', validateHeadersFn);
-    validateHeadersFn();
-
-    // add an event handler to the process button
-    $processBtn.click(()=>{
-        // split the raw source into an array of lines
-        let rawHeaders = $fullHeadersTA.val().trim();
-        rawHeaders.replace(/\n\r|\r\n/g, '\n'); // replace windows line endings with plain \n
-        const headerLines = rawHeaders.split('\n');
-
-        // strip away an leading empty lines
-        while(headerLines > 0){
-            if(headerLines[0].match(/^\s*$/)) headerLines.shift();
-        }
-        if(headerLines.length === 0){
-            window.alert('no hearders!');
+    // add an event handler to the parse button
+    $UI.form.parseBtn.click(()=>{
+        // parse the source
+        try{
+            LOADED_HEADERS = parseSource($UI.form.source.val());
+            console.debug(`successfully parsed source, found ${LOADED_HEADERS.list.length} header(s)`, LOADED_HEADERS);
+        }catch(err){
+            console.warn('failed to parse email source with error:', err);
             return false;
         }
 
-        // extract all headers
-        const headerList = []; // an in-order list of headers, were each header is an object indexed by name, and value
-        const headers = {}; // a lookup of header values indexed by name
-        let customHeaderNames = []; // an array of all the header names matching the specified custom prefix (if any)
-        const wipHeader = { name: '', value: '', index: 0 };
-        const storeWIPHeader = ()=>{
-            if(wipHeader.name.length > 0){
-                // store the finished header
+    //     // genereate the security report
+    //     const securityDetails = {
+    //         ...(headers.authentication_results ? parseAuthResultHeader(headers.authentication_results.value) : {}),
+    //         ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
+    //         ...(headers.x_forefront_antispam_report ? parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value) : {}),
+    //         ...(headers.x_microsoft_antispam ? parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value) : {})
+    //     };
+    //     console.debug(securityDetails);
 
-                // always push a shallow clone into the sequential list
-                headerList.push({...wipHeader});
+    //     // render all the headers
+    //     $allHeadersUL.empty();
+    //     if(headerList. length > 0){
+    //         for(const header of headerList){
+    //             const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+    //             $('.header-name', $header).text(header.name);
+    //             $('.header-value', $header).text(header.value);
+    //             if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
+    //                 $header.addClass('bg-danger bg-opacity-10');
+    //             }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+    //                 $header.addClass('bg-warning bg-opacity-10');
+    //             }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
+    //                 $header.addClass('bg-primary bg-opacity-10');
+    //             }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
+    //                 $header.addClass('bg-success bg-opacity-10');
+    //             }
+    //             $allHeadersUL.append($header);    
+    //         }
+    //     }else{
+    //         $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
+    //     }
 
-                // insert into the headers dictionary as a single or mutli-value header as appropriate
-                const newHeader = {...wipHeader}; // a shallow clone
-                if(headers[newHeader.name]){
-                    if(headers[newHeader.name].multiValue){
-                        // already a multi-value, just append
-                        headers[newHeader.name].values.push(newHeader);
-                    }else{
-                        // currently a single-value header, convert to multi-value one
-                        const singleHeaderDetails = { ...headers[newHeader.name] }; // shallow clone
-                        headers[newHeader.name].multiValue = true;
-                        headers[newHeader.name].values = [singleHeaderDetails,  newHeader];
-                        delete headers[newHeader.name].value;
-                        delete headers[newHeader.name].index;
-                    }
-                }else{
-                    // never-before seen header, so just save
-                    headers[newHeader.name] = newHeader;
-                }
+    //     // render the full security report
+    //     $securityReportDiv.empty();
+    //     if(Object.keys(securityDetails).length > 0){
+    //         const $securityReport = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(securityDetails, {}));
+    //         $securityReportDiv.append($securityReport);
+    //     }else{
+    //         $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
+    //     }
 
-                // start a new WIP header
-                wipHeader.name = '';
-                wipHeader.value = '';
-                wipHeader.index++;
-            }
-        };
-        while(headerLines.length > 0){
-            // shift the first remaning line
-            const l = headerLines.shift();
+    //     //
+    //     // render the basics
+    //     //
+    //     $basicsUL.empty();
+    //     const generateBasicsLI = (n, v)=>{
+    //         const $header = $('<li class="list-group-item"><code class="header-name"></code>: <span class="font-monospace header-value"></span></li>');
+    //         $('.header-name', $header).text(n);
+    //         $('.header-value', $header).text(v);
+    //         return $header;
+    //     };
+    //     $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
+    //     $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
+    //     //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
+    //     //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
+    //     //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
+    //     const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
+    //     $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
+    //     if (headers['reply-to']){
+    //         if ((headers['reply-to'].value == headers.from.value)){
+    //             const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
+    //             $fromLI.append(' ').append($replyTo);
+    //         }else{
+    //             const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
+    //             $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
+    //             $fromLI.append(' ').append($replyTo);
+    //         }
+    //     }
+    //     if (headers['return-path']){
+    //         const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
+    //         $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
+    //         $fromLI.append(' ').append($returnPath);
+    //     }
+    //     $basicsUL.append($fromLI);
+    //     const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
+    //     $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
+    //     if (headers['delivered-to']){
+    //         const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
+    //         $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
+    //         $toLI.append(' ').append($deliveredTo);
+    //     } 
+    //     $basicsUL.append($toLI);
+    //     $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
 
-            // if we reach a blank line, stop, we're at the end of the headers and into the body
-            if(l.match(/^\s*$/)){
-                break;
-            }
+    //     //
+    //     // render the security summary
+    //     //
+    //     $securityAnalysisUL.empty();
 
-            // see if we're starting a new header (no leading spaces) or continuing one
-            if(l.match(/^\w/)){
-                // new header
+    //     // a local function to render an info tooltip within the security analysis
+    //     const appendInfo = ($li, info)=>{
+    //         const $info = $('<i class="bi bi-info-circle-fill"></i>').attr('title', info);
+    //         new bootstrap.Tooltip($info[0]);
+    //         $li.append(' ').append($info);
+    //     };
 
-                // store the previous header
-                storeWIPHeader();
+    //     // start with the authentication results header
+    //     if(securityDetails.authenticationResultsHeaderSpecified){
+    //         // start with compound auth
+    //         const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>Compound Authentication:</strong> ');
+    //         const appendCompauthReason = ($li)=>{
+    //             if(securityDetails.compoundAuthentication.reasonCode !== '000'){
+    //                 $info = $('<span>').addClass('text-muted').html(' <code class="code"></code> <span class="meaning"></span>');
+    //                 $('.code', $info).text(securityDetails.compoundAuthentication.reasonCode);
+    //                 $('.meaning', $info).text(securityDetails.compoundAuthentication.reasonMeaning);
+    //                 $li.append($info);
+    //             }
+    //         };
+    //         switch(securityDetails.compoundAuthentication.result){
+    //             case 'pass':
+    //             case 'softpass':
+    //                 $compAuthLI.append($('<span>').addClass('badge bg-success').text(securityDetails.compoundAuthentication.result));
+    //                 appendCompauthReason($compAuthLI);
+    //                 break;
+    //             case 'none':
+    //                 $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NOT PERFORMED'));
+    //                 appendCompauthReason($compAuthLI);
+    //                 break;
+    //             case 'fail':
+    //                 $compAuthLI.append($('<span>').addClass('badge bg-danger').text('FAIL'));
+    //                 appendCompauthReason($compAuthLI);
+    //                 break;
+    //             case 'unknown':
+    //                 $compAuthLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No Compound Auhentication details found in <code>Authentication-Results</code> header'));
+    //                 break;
+    //             default:
+    //                 $compAuthLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.compoundAuthentication.result}</code>`));
+    //         }
+    //         $securityAnalysisUL.append($compAuthLI);
 
-                // spit the header name from the value
-                const headerMatch = l.match(/^([-\w\d]+):[ ]?(.*)/);
-                if(headerMatch){
-                    wipHeader.name = headerMatch[1];
-                    wipHeader.value = headerMatch[2] || '';
-                }else{
-                    console.warn('failed to parse header line', l);
-                }
-            }else if(l.match(/^\s+/)){
-                // continuing the previous header
+    //         // local function for adding details to SFP, DKIM, or DMARC
+    //         const appendDetails = ($li, result)=>{
+    //             $li.append('<br>').append($('<small>').addClass('text-muted font-monospace').text(result.details));
+    //         };
 
-                // append the line to the current header
-                wipHeader.value += ' ' + l.trim();
-            }else{
-                console.warn('failed to interpret header line', l);
-            }
-        }
-        // store any as-yet unsaved WIP header
-        storeWIPHeader();
+    //         // add SPF
+    //         const $spfLI = $('<li>').addClass('list-group-item').html('<strong>SPF Validation:</strong> ');
+    //         switch(securityDetails.spf.result){
+    //             case 'none':
+    //                 $spfLI.append($('<span>').addClass('badge bg-secondary').text('no SPF record'));
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'pass':
+    //                 $spfLI.append($('<span>').addClass('badge bg-success').text('pass'));
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'neutral':
+    //                 $spfLI.append($('<span>').addClass('badge bg-primary').text('neutral'));
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'fail':
+    //                 $spfLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.spf.result));
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'softfail':
+    //                 $spfLI.append($('<span>').addClass('badge bg-danger').text('soft fail'));
+    //                 appendInfo($spfLI, 'sender denied but SPF record is permissive (~all), not enforcing (-all)');
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'temperror':
+    //                 $spfLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
+    //                 appendInfo($spfLI, 'SPF processing failed because of a temporary problem, usually a DNS lookup failure');
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'permerror':
+    //                 $spfLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
+    //                 appendInfo($spfLI, 'SPF processing failed because of a problem with the record, usally a syntax error in the record itself');
+    //                 appendDetails($spfLI, securityDetails.spf);
+    //                 break;
+    //             case 'unknown':
+    //                 $spfLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No SPF details found in <code>Authentication-Results</code> header'));
+    //                 break;
+    //             default:
+    //                 $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.spf.result}</code>'));
+    //         }
+    //         $securityAnalysisUL.append($spfLI);
 
-        // build the global data structure
-        LOADED_HEADERS.list = []; // empty the header list
-        LOADED_HEADERS.listAsReceived = []; // empty the list in original order
-        LOADED_HEADERS.byHeaderID = {}; // empty the lookup by ID
-        for(const header of headerList){
-            // make sure we have a valid header object
-            if(!isHeaderObject(header)){
-                console.warn('skipping invalid header', header);
-                continue;
-            }
+    //         // add DKIM
+    //         const $dkimLI = $('<li>').addClass('list-group-item').html('<strong>DKIM Validation:</strong> ');
+    //         switch(securityDetails.dkim.result){
+    //             case 'none':
+    //                 $dkimLI.append($('<span>').addClass('badge bg-secondary').text('message not signed'));
+    //                 break;
+    //             case 'pass':
+    //                 $dkimLI.append($('<span>').addClass('badge bg-success').text('pass'));
+    //                 appendDetails($dkimLI, securityDetails.dkim);
+    //                 break;
+    //             case 'fail':
+    //                 $dkimLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dkim.result));
+    //                 appendDetails($dkimLI, securityDetails.dkim);
+    //                 break;
+    //             case 'unknown':
+    //                 $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+    //                 break;
+    //             default:
+    //                 $dkimLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dkim.result}</code>`));
+    //         }
+    //         $securityAnalysisUL.append($dkimLI);
+
+    //         // add DMARC
+    //         const $dmarcLI = $('<li>').addClass('list-group-item').html('<strong>DMARC Validation:</strong> ');
+    //         switch(securityDetails.dmarc.result){
+    //             case 'none':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-secondary').text('no DMARC record'));
+    //                 break;
+    //             case 'pass':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-success').text('pass'));
+    //                 appendDetails($dmarcLI, securityDetails.dmarc);
+    //                 break;
+    //             case 'bestguesspass':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-success').text('inferred pass'));
+    //                 appendInfo($dmarcLI, 'There is no DMARC record for the domain, but if a typical record existed, it would have passed');
+    //                 appendDetails($dmarcLI, securityDetails.dmarc);
+    //                 break;
+    //             case 'fail':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dmarc.result));
+    //                 appendDetails($dmarcLI, securityDetails.dmarc);
+    //                 break;
+    //             case 'temperror':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
+    //                 appendInfo($dmarcLI, 'DMARC processing failed because of a temporary problem, usually a DNS lookup failure');
+    //                 appendDetails($dmarcLI, securityDetails.dmarc);
+    //                 break;
+    //             case 'permerror':
+    //                 $dmarcLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
+    //                 appendInfo($dmarcLI, "DMARC processing failed because of a problem retrieving or processing the DNS record. This usually happens when there is a syntax error in the record, or, when the domain name doesn't reslove on the public internet (e.g. cron on a host without a public DNS name).");
+    //                 appendDetails($dmarcLI, securityDetails.dmarc);
+    //                 break;
+    //             case 'unknown':
+    //                 $dmarcLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+    //                 break;
+    //             default:
+    //                 $dmarcLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dmarc.result}</code>`));
+    //         }
+    //         $securityAnalysisUL.append($dmarcLI);
+    //     }else{
+    //         $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
+    //     }
+
+    //     // next the spam report header
+    //     if(securityDetails.spamReportHeaderSpecified){
+    //         // start with the spam score
+    //         const $spamScoreLI = $('<li>').addClass('list-group-item').html('<strong>Spam Filter:</strong> ');
+    //         const $scl = $('<span>').addClass('badge').html('SCL <span class="code font-monospace"></span> — <span class="meaning"></span>');
+    //         const sclDesc = sclMeaning(securityDetails.spamScore);
+    //         $('.code', $scl).text(securityDetails.spamScore);
+    //         $('.meaning', $scl).text(sclDesc);
+    //         switch(sclDesc){
+    //             case 'not spam':
+    //                 $scl.addClass('bg-success');
+    //                 break;
+    //             case 'spam':
+    //             case 'high confidence spam':
+    //                 $scl.addClass('bg-danger');
+    //                 break;
+    //              default:
+    //                 $scl.addClass('bg-secondary');
+    //         }
+    //         $spamScoreLI.append($scl);
+    //         if(securityDetails.spamFilterAction !== 'none'){
+    //             $spamScoreLI.append(' ').append($('<span>').text(securityDetails.spamFilterAction));
+    //         }
+    //         $securityAnalysisUL.append($spamScoreLI);
             
-            // store a clone in the appropriate end of each list
-            LOADED_HEADERS.list.unshift(cloneHeader(header));
-            LOADED_HEADERS.listAsReceived.push(cloneHeader(header));
+    //         // finish with the quarantine info
+    //         const $quarantineLI = $('<li>').addClass('list-group-item').html('<strong>Quarantine Details:</strong> ');
+    //         const $quarantinedBadge = $('<span>').addClass('badge');
+    //         if(securityDetails.releasedFromQuarantine){
+    //             // the mail was relesed from quarantine
+    //             $quarantinedBadge.text('Released from Quarantine').addClass('bg-warning');
+    //         }else{
+    //             // the mail was not quarantined
+    //             $quarantinedBadge.text('Not Quarantined').addClass('bg-success');
+    //         }
+    //         $quarantineLI.append($quarantinedBadge);
+    //         if(securityDetails.releasedFromQuarantine){
+    //             if(securityDetails.OriginalAuthenticationResultsHeaderSpecified){
+    //                 const $originalAuthResult = $('<span>').text(securityDetails.originalAuthResult).addClass('badge');
+    //                 switch(securityDetails.originalAuthResult){
+    //                     case 'fail':
+    //                         $originalAuthResult.addClass('bg-error');
+    //                         break;
+    //                     case 'pass':
+    //                         $originalAuthResult.addClass('bg-success');
+    //                         break;
+    //                     default:
+    //                         $originalAuthResult.addClass('bg-danger');
+    //                 }
+    //                 $quarantineLI.append('<br>').append($('<small>').text('Pre-quarantine Authentication Result: ').addClass('text-muted').append($originalAuthResult));
+    //             }else{
+    //                 $quarantineLI.append('<br>').append($('<small>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic'));
+    //             }
+    //         }
+    //         $securityAnalysisUL.append($quarantineLI);
+    //     }else{
+    //         $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Forefront-Antispam-Report</code> header found'));
+    //     }
 
-            // store in the lookup by ID
-            const headerID = headerNameToID(header.name);
-            if(LOADED_HEADERS.byHeaderID[headerID]){
-                LOADED_HEADERS.byHeaderID[headerID].unshift(cloneHeader(header));
-            }else{
-                LOADED_HEADERS.byHeaderID[headerID] = [cloneHeader(header)];
-            }
-        }
+    //     // next the bulk mail header
+    //     if(securityDetails.bulkMailReportHeaderSpecified){
+    //         const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
+    //         const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
+    //         const bclDesc = bclMeaning(securityDetails.bulkMailScore);
+    //         $('.code', $bcl).text(securityDetails.bulkMailScore);
+    //         $('.meaning', $bcl).text(bclDesc);
+    //         if(bclDesc === 'not from bulk mail sender' || bclDesc.includes('few user complaints')){
+    //             $('.badge', $bcl).addClass('bg-success');
+    //         }else if(bclDesc.includes('some user complaints')){
+    //             $$('.badge', $bcl).addClass('bg-warning');
+    //         }else if(bclDesc.includes('many user complaints')){
+    //             $('.badge', $bcl).addClass('bg-danger');
+    //         }else{
+    //             $('.badge', $bcl).addClass('bg-secondary');
+    //         }
+    //         $bulkMailScoreLI.append($bcl);
+    //         $securityAnalysisUL.append($bulkMailScoreLI);
+    //     }else{
+    //         $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Microsoft-Antispam</code> header found'));
+    //     }
 
-        // also store the headers in lower case, and in lower-case with the dashes replaced with underscores
-        // while looping over all the headers, also save any matching custom headers
-        const customPrefix = $customHeadersPrefixTB.val().trim();
-        for(const headerName of Object.keys(headers)){
-            // store in lower case and with underscores
-            const lcHeaderName = headerName.toLowerCase();
-            const lcUunderScoreHeaderName = lcHeaderName.replaceAll('-', '_');
-            if(lcHeaderName !== headerName){
-                headers[lcHeaderName] = headers[headerName];
-            }
-            if(lcUunderScoreHeaderName !== headerName && lcUunderScoreHeaderName !== lcHeaderName){
-                headers[lcUunderScoreHeaderName] = headers[headerName];
-            }
+    //     // end with the details to submit the mail to Microsoft for review
+    //     if(headers['x-ms-exchange-organization-network-message-id']){
+    //         const $submitToMSLI = $('<li>').addClass('list-group-item list-group-item-info')
+    //         $submitToMSLI.html(`<i class="bi bi-info-circle"></i> If this mail was mishandled by Micorosft's filters you can submit it for review using the Network Message ID <code>${headers['x-ms-exchange-organization-network-message-id'].value}</code>. <a href="https://security.microsoft.com/reportsubmission?viewid=admin" rel="nofollow" target="_blank" class="btn btn-outline-primary btn-sm">Submit to MS <i class="bi bi-box-arrow-up-right"></i></a>`);
+    //         $securityAnalysisUL.append($submitToMSLI);
+    //     }
 
-            // check if custom header
-            if(lcHeaderName.startsWith(customPrefix.toLowerCase())){
-                customHeaderNames.push(headerName);
-            }
-        }
-        customHeaderNames = customHeaderNames.sort();
-        console.debug(headerList, headers, customHeaderNames);
-
-        // genereate the security report
-        const securityDetails = {
-            ...(headers.authentication_results ? parseAuthResultHeader(headers.authentication_results.value) : {}),
-            ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
-            ...(headers.x_forefront_antispam_report ? parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value) : {}),
-            ...(headers.x_microsoft_antispam ? parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value) : {})
-        };
-        console.debug(securityDetails);
-
-        // render all the headers
-        $allHeadersUL.empty();
-        if(headerList. length > 0){
-            for(const header of headerList){
-                const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-                $('.header-name', $header).text(header.name);
-                $('.header-value', $header).text(header.value);
-                if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-danger bg-opacity-10');
-                }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-warning bg-opacity-10');
-                }else if(ADDRESSING_HEADERS_LOOKUP[header.name.toLowerCase()]){
-                    $header.addClass('bg-primary bg-opacity-10');
-                }else if(customPrefix.length > 0 && header.name.toLowerCase().startsWith(customPrefix.toLowerCase())){
-                    $header.addClass('bg-success bg-opacity-10');
-                }
-                $allHeadersUL.append($header);    
-            }
-        }else{
-            $allHeadersUL.append($('<li>').addClass('list-group-item list-group-item-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Headers Found!'));
-        }
-
-        // render the full security report
-        $securityReportDiv.empty();
-        if(Object.keys(securityDetails).length > 0){
-            const $securityReport = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(securityDetails, {}));
-            $securityReportDiv.append($securityReport);
-        }else{
-            $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
-        }
-
-        //
-        // render the basics
-        //
-        $basicsUL.empty();
-        const generateBasicsLI = (n, v)=>{
-            const $header = $('<li class="list-group-item"><code class="header-name"></code>: <span class="font-monospace header-value"></span></li>');
-            $('.header-name', $header).text(n);
-            $('.header-value', $header).text(v);
-            return $header;
-        };
-        $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
-        $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
-        //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
-        //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
-        //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
-        const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
-        $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
-        if (headers['reply-to']){
-            if ((headers['reply-to'].value == headers.from.value)){
-                const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
-                $fromLI.append(' ').append($replyTo);
-            }else{
-                const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
-                $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
-                $fromLI.append(' ').append($replyTo);
-            }
-        }
-        if (headers['return-path']){
-            const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
-            $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
-            $fromLI.append(' ').append($returnPath);
-        }
-        $basicsUL.append($fromLI);
-        const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
-        $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
-        if (headers['delivered-to']){
-            const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
-            $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
-            $toLI.append(' ').append($deliveredTo);
-        } 
-        $basicsUL.append($toLI);
-        $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
-
-        //
-        // render the security summary
-        //
-        $securityAnalysisUL.empty();
-
-        // a local function to render an info tooltip within the security analysis
-        const appendInfo = ($li, info)=>{
-            const $info = $('<i class="bi bi-info-circle-fill"></i>').attr('title', info);
-            new bootstrap.Tooltip($info[0]);
-            $li.append(' ').append($info);
-        };
-
-        // start with the authentication results header
-        if(securityDetails.authenticationResultsHeaderSpecified){
-            // start with compound auth
-            const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>Compound Authentication:</strong> ');
-            const appendCompauthReason = ($li)=>{
-                if(securityDetails.compoundAuthentication.reasonCode !== '000'){
-                    $info = $('<span>').addClass('text-muted').html(' <code class="code"></code> <span class="meaning"></span>');
-                    $('.code', $info).text(securityDetails.compoundAuthentication.reasonCode);
-                    $('.meaning', $info).text(securityDetails.compoundAuthentication.reasonMeaning);
-                    $li.append($info);
-                }
-            };
-            switch(securityDetails.compoundAuthentication.result){
-                case 'pass':
-                case 'softpass':
-                    $compAuthLI.append($('<span>').addClass('badge bg-success').text(securityDetails.compoundAuthentication.result));
-                    appendCompauthReason($compAuthLI);
-                    break;
-                case 'none':
-                    $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NOT PERFORMED'));
-                    appendCompauthReason($compAuthLI);
-                    break;
-                case 'fail':
-                    $compAuthLI.append($('<span>').addClass('badge bg-danger').text('FAIL'));
-                    appendCompauthReason($compAuthLI);
-                    break;
-                case 'unknown':
-                    $compAuthLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No Compound Auhentication details found in <code>Authentication-Results</code> header'));
-                    break;
-                default:
-                    $compAuthLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.compoundAuthentication.result}</code>`));
-            }
-            $securityAnalysisUL.append($compAuthLI);
-
-            // local function for adding details to SFP, DKIM, or DMARC
-            const appendDetails = ($li, result)=>{
-                $li.append('<br>').append($('<small>').addClass('text-muted font-monospace').text(result.details));
-            };
-
-            // add SPF
-            const $spfLI = $('<li>').addClass('list-group-item').html('<strong>SPF Validation:</strong> ');
-            switch(securityDetails.spf.result){
-                case 'none':
-                    $spfLI.append($('<span>').addClass('badge bg-secondary').text('no SPF record'));
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'pass':
-                    $spfLI.append($('<span>').addClass('badge bg-success').text('pass'));
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'neutral':
-                    $spfLI.append($('<span>').addClass('badge bg-primary').text('neutral'));
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'fail':
-                    $spfLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.spf.result));
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'softfail':
-                    $spfLI.append($('<span>').addClass('badge bg-danger').text('soft fail'));
-                    appendInfo($spfLI, 'sender denied but SPF record is permissive (~all), not enforcing (-all)');
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'temperror':
-                    $spfLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
-                    appendInfo($spfLI, 'SPF processing failed because of a temporary problem, usually a DNS lookup failure');
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'permerror':
-                    $spfLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
-                    appendInfo($spfLI, 'SPF processing failed because of a problem with the record, usally a syntax error in the record itself');
-                    appendDetails($spfLI, securityDetails.spf);
-                    break;
-                case 'unknown':
-                    $spfLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No SPF details found in <code>Authentication-Results</code> header'));
-                    break;
-                default:
-                    $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.spf.result}</code>'));
-            }
-            $securityAnalysisUL.append($spfLI);
-
-            // add DKIM
-            const $dkimLI = $('<li>').addClass('list-group-item').html('<strong>DKIM Validation:</strong> ');
-            switch(securityDetails.dkim.result){
-                case 'none':
-                    $dkimLI.append($('<span>').addClass('badge bg-secondary').text('message not signed'));
-                    break;
-                case 'pass':
-                    $dkimLI.append($('<span>').addClass('badge bg-success').text('pass'));
-                    appendDetails($dkimLI, securityDetails.dkim);
-                    break;
-                case 'fail':
-                    $dkimLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dkim.result));
-                    appendDetails($dkimLI, securityDetails.dkim);
-                    break;
-                case 'unknown':
-                    $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
-                    break;
-                default:
-                    $dkimLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dkim.result}</code>`));
-            }
-            $securityAnalysisUL.append($dkimLI);
-
-            // add DMARC
-            const $dmarcLI = $('<li>').addClass('list-group-item').html('<strong>DMARC Validation:</strong> ');
-            switch(securityDetails.dmarc.result){
-                case 'none':
-                    $dmarcLI.append($('<span>').addClass('badge bg-secondary').text('no DMARC record'));
-                    break;
-                case 'pass':
-                    $dmarcLI.append($('<span>').addClass('badge bg-success').text('pass'));
-                    appendDetails($dmarcLI, securityDetails.dmarc);
-                    break;
-                case 'bestguesspass':
-                    $dmarcLI.append($('<span>').addClass('badge bg-success').text('inferred pass'));
-                    appendInfo($dmarcLI, 'There is no DMARC record for the domain, but if a typical record existed, it would have passed');
-                    appendDetails($dmarcLI, securityDetails.dmarc);
-                    break;
-                case 'fail':
-                    $dmarcLI.append($('<span>').addClass('badge bg-danger').text(securityDetails.dmarc.result));
-                    appendDetails($dmarcLI, securityDetails.dmarc);
-                    break;
-                case 'temperror':
-                    $dmarcLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
-                    appendInfo($dmarcLI, 'DMARC processing failed because of a temporary problem, usually a DNS lookup failure');
-                    appendDetails($dmarcLI, securityDetails.dmarc);
-                    break;
-                case 'permerror':
-                    $dmarcLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
-                    appendInfo($dmarcLI, "DMARC processing failed because of a problem retrieving or processing the DNS record. This usually happens when there is a syntax error in the record, or, when the domain name doesn't reslove on the public internet (e.g. cron on a host without a public DNS name).");
-                    appendDetails($dmarcLI, securityDetails.dmarc);
-                    break;
-                case 'unknown':
-                    $dmarcLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
-                    break;
-                default:
-                    $dmarcLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${securityDetails.dmarc.result}</code>`));
-            }
-            $securityAnalysisUL.append($dmarcLI);
-        }else{
-            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
-        }
-
-        // next the spam report header
-        if(securityDetails.spamReportHeaderSpecified){
-            // start with the spam score
-            const $spamScoreLI = $('<li>').addClass('list-group-item').html('<strong>Spam Filter:</strong> ');
-            const $scl = $('<span>').addClass('badge').html('SCL <span class="code font-monospace"></span> — <span class="meaning"></span>');
-            const sclDesc = sclMeaning(securityDetails.spamScore);
-            $('.code', $scl).text(securityDetails.spamScore);
-            $('.meaning', $scl).text(sclDesc);
-            switch(sclDesc){
-                case 'not spam':
-                    $scl.addClass('bg-success');
-                    break;
-                case 'spam':
-                case 'high confidence spam':
-                    $scl.addClass('bg-danger');
-                    break;
-                 default:
-                    $scl.addClass('bg-secondary');
-            }
-            $spamScoreLI.append($scl);
-            if(securityDetails.spamFilterAction !== 'none'){
-                $spamScoreLI.append(' ').append($('<span>').text(securityDetails.spamFilterAction));
-            }
-            $securityAnalysisUL.append($spamScoreLI);
-            
-            // finish with the quarantine info
-            const $quarantineLI = $('<li>').addClass('list-group-item').html('<strong>Quarantine Details:</strong> ');
-            const $quarantinedBadge = $('<span>').addClass('badge');
-            if(securityDetails.releasedFromQuarantine){
-                // the mail was relesed from quarantine
-                $quarantinedBadge.text('Released from Quarantine').addClass('bg-warning');
-            }else{
-                // the mail was not quarantined
-                $quarantinedBadge.text('Not Quarantined').addClass('bg-success');
-            }
-            $quarantineLI.append($quarantinedBadge);
-            if(securityDetails.releasedFromQuarantine){
-                if(securityDetails.OriginalAuthenticationResultsHeaderSpecified){
-                    const $originalAuthResult = $('<span>').text(securityDetails.originalAuthResult).addClass('badge');
-                    switch(securityDetails.originalAuthResult){
-                        case 'fail':
-                            $originalAuthResult.addClass('bg-error');
-                            break;
-                        case 'pass':
-                            $originalAuthResult.addClass('bg-success');
-                            break;
-                        default:
-                            $originalAuthResult.addClass('bg-danger');
-                    }
-                    $quarantineLI.append('<br>').append($('<small>').text('Pre-quarantine Authentication Result: ').addClass('text-muted').append($originalAuthResult));
-                }else{
-                    $quarantineLI.append('<br>').append($('<small>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic'));
-                }
-            }
-            $securityAnalysisUL.append($quarantineLI);
-        }else{
-            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Forefront-Antispam-Report</code> header found'));
-        }
-
-        // next the bulk mail header
-        if(securityDetails.bulkMailReportHeaderSpecified){
-            const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
-            const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
-            const bclDesc = bclMeaning(securityDetails.bulkMailScore);
-            $('.code', $bcl).text(securityDetails.bulkMailScore);
-            $('.meaning', $bcl).text(bclDesc);
-            if(bclDesc === 'not from bulk mail sender' || bclDesc.includes('few user complaints')){
-                $('.badge', $bcl).addClass('bg-success');
-            }else if(bclDesc.includes('some user complaints')){
-                $$('.badge', $bcl).addClass('bg-warning');
-            }else if(bclDesc.includes('many user complaints')){
-                $('.badge', $bcl).addClass('bg-danger');
-            }else{
-                $('.badge', $bcl).addClass('bg-secondary');
-            }
-            $bulkMailScoreLI.append($bcl);
-            $securityAnalysisUL.append($bulkMailScoreLI);
-        }else{
-            $securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Microsoft-Antispam</code> header found'));
-        }
-
-        // end with the details to submit the mail to Microsoft for review
-        if(headers['x-ms-exchange-organization-network-message-id']){
-            const $submitToMSLI = $('<li>').addClass('list-group-item list-group-item-info')
-            $submitToMSLI.html(`<i class="bi bi-info-circle"></i> If this mail was mishandled by Micorosft's filters you can submit it for review using the Network Message ID <code>${headers['x-ms-exchange-organization-network-message-id'].value}</code>. <a href="https://security.microsoft.com/reportsubmission?viewid=admin" rel="nofollow" target="_blank" class="btn btn-outline-primary btn-sm">Submit to MS <i class="bi bi-box-arrow-up-right"></i></a>`);
-            $securityAnalysisUL.append($submitToMSLI);
-        }
-
-        //
-        // render the custom headers
-        //
-        $customHeadersUL.empty();
-        if(customPrefix.length > 0){
-            if(customHeaderNames.length > 0){
-                for(const headerName of customHeaderNames){
-                    const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-                    $('.header-name', $header).text(headers[headerName].name);
-                    $('.header-value', $header).text(headers[headerName].value);
-                    $customHeadersUL.append($header);
-                }
-            }else{
-                $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${customPrefix}</code>`));
-            }
-        }else{
-            $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
-        }
+    //     //
+    //     // render the custom headers
+    //     //
+    //     $customHeadersUL.empty();
+    //     if(customPrefix.length > 0){
+    //         if(customHeaderNames.length > 0){
+    //             for(const headerName of customHeaderNames){
+    //                 const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+    //                 $('.header-name', $header).text(headers[headerName].name);
+    //                 $('.header-value', $header).text(headers[headerName].value);
+    //                 $customHeadersUL.append($header);
+    //             }
+    //         }else{
+    //             $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${customPrefix}</code>`));
+    //         }
+    //     }else{
+    //         $customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
+    //     }
     });
 
-    // focus the full headers field
-    $fullHeadersTA.focus();
+    // focus the source field
+    $UI.form.source.focus();
 });
 
+//
+// === UI functions ===
+//
+
+//
+// -- Form Validation Functions --
+//
+
 /**
- * Validate the header details form.
+ * Validate the input form.
  * 
- * @param {jQuery} $fullHeadersTA - a jQuery object representing the
- * full headers text area.
- * @param {jQuery} $customHeadersPrefixTB - a jQuery object representing the
- * optional custom header prefix.
+ * This function logs a warning and returns `false` if there's a problem.
+ * 
  * @return {boolean}
  */
- function validateHeadersForm($fullHeadersTA, $customHeadersPrefixTB){
-    // make sure we were passed two jQuery objects
-    for(const $textInput of [$fullHeadersTA, $customHeadersPrefixTB]){
-        if(!$textInput instanceof $){
-            console.warn('extraction form validation must be passed two jQuery objects');
-            return false;
-        }
+ function validateInputForm(){
+    // make sure the jQuery objects have been loaded
+    if(!$UI.initialised){
+        console.warn("form can't be validated until the jQuery references have been loaded into $UI");
+        return false;
     }
 
     // validate each input
     let numError = 0;
     let numMissingRequired = 0;
-    if($fullHeadersTA.val().match(/\w/)){
-        $fullHeadersTA.removeClass('is-invalid').addClass('is-valid');
+    if($UI.form.source.val().match(/\w/)){
+        $UI.form.source.removeClass('is-invalid').addClass('is-valid');
     }else{
         numMissingRequired++;
-        $fullHeadersTA.removeClass('is-valid');
-        if($fullHeadersTA.val() !== ''){
-            $fullHeadersTA.addClass('is-invalid');
+        $UI.form.source.removeClass('is-valid');
+        if($UI.form.source.val() !== ''){
+            $UI.form.source.addClass('is-invalid');
             numError++;
         }
     }
-    if($customHeadersPrefixTB.val().length > 0){
-        $customHeadersPrefixTB.addClass('is-valid');
+    if($UI.form.customHeadersPrefix.val().length > 0){
+        $UI.form.customHeadersPrefix.addClass('is-valid');
     }else{
-        $customHeadersPrefixTB.removeClass('is-valid');
+        $UI.form.customHeadersPrefix.removeClass('is-valid');
     }
     
     // if we've no errors and no missing required fields, enable the button
     if(numError === 0 && numMissingRequired === 0){
-        $fullHeadersTA.closest('form').find('button').prop('disabled', false);
+        $UI.form.parseBtn.prop('disabled', false);
         return true;
     }
 
     // default to disabling and return false
-    $fullHeadersTA.closest('form').find('button').prop('disabled', true);
+    $UI.form.parseBtn.prop('disabled', true);
     return false;
 }
 
