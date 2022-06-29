@@ -472,6 +472,9 @@ $.when( $.ready ).then(function() {
         renderAllHeaders();
         renderCustomHeaders();
 
+        // render the info cards
+        renderBasicsCard();
+
     //     // render the full security report
     //     $securityReportDiv.empty();
     //     if(Object.keys(securityDetails).length > 0){
@@ -481,48 +484,7 @@ $.when( $.ready ).then(function() {
     //         $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
     //     }
 
-    //     //
-    //     // render the basics
-    //     //
-    //     $basicsUL.empty();
-    //     const generateBasicsLI = (n, v)=>{
-    //         const $header = $('<li class="list-group-item"><code class="header-name"></code>: <span class="font-monospace header-value"></span></li>');
-    //         $('.header-name', $header).text(n);
-    //         $('.header-value', $header).text(v);
-    //         return $header;
-    //     };
-    //     $basicsUL.append(generateBasicsLI('Subject', headers.subject ? headers.subject.value : '').addClass('fw-bold'));
-    //     $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
-    //     //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
-    //     //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
-    //     //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
-    //     const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
-    //     $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
-    //     if (headers['reply-to']){
-    //         if ((headers['reply-to'].value == headers.from.value)){
-    //             const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
-    //             $fromLI.append(' ').append($replyTo);
-    //         }else{
-    //             const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
-    //             $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
-    //             $fromLI.append(' ').append($replyTo);
-    //         }
-    //     }
-    //     if (headers['return-path']){
-    //         const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
-    //         $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
-    //         $fromLI.append(' ').append($returnPath);
-    //     }
-    //     $basicsUL.append($fromLI);
-    //     const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
-    //     $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
-    //     if (headers['delivered-to']){
-    //         const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
-    //         $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
-    //         $toLI.append(' ').append($deliveredTo);
-    //     } 
-    //     $basicsUL.append($toLI);
-    //     $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
+    //     
 
     //     //
     //     // render the security summary
@@ -813,6 +775,23 @@ function showParseError(errorText){
     $UI.output.alerts.append($alert);
 }
 
+/**
+ * Generate a basic header list item. Both the header title and value are
+ * rendered in a monospaced font.
+ * 
+ * The returned object will contain placeholder inline elements for the
+ * header's name and value. These elements will have the classes
+ * `.header-name` & `.header-value` respectively.
+ * 
+ * @param {HeaderObject} header
+ */
+function generateHeaderLI(header){
+    const $ans = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
+    $('.header-name', $ans).text(header.name);
+    $('.header-value', $ans).text(header.value);
+    return $ans;
+}
+
 //
 // -- Form Validation Functions --
 //
@@ -858,7 +837,7 @@ function showParseError(errorText){
 //
 
 /**
- * Render the  full list of headers.
+ * Render the full list of headers.
  */
 function renderAllHeaders(){
     // empty the header UL
@@ -866,9 +845,7 @@ function renderAllHeaders(){
 
     // loop over all the loaded headers and append them to the UL
     for(const header of DATA.listAsReceived){
-        const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-        $('.header-name', $header).text(header.name);
-        $('.header-value', $header).text(header.value);
+        const $header = generateHeaderLI(header);
         if(SECURITY_HEADERS_LOOKUP[header.name.toLowerCase()]){
             $header.addClass('bg-danger bg-opacity-10');
         }else if(ROUTING_HEADERS_LOOKUP[header.name.toLowerCase()]){
@@ -891,10 +868,7 @@ function renderCustomHeaders(){
     if(DATA.customPrefix.length > 0){
              if(DATA.listMatchingCustomPrefix.length > 0){
                 for(const header of DATA.listMatchingCustomPrefix){
-                    const $header = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
-                    $('.header-name', $header).text(header.name);
-                    $('.header-value', $header).text(header.value);
-                    $UI.output.customHeadersUL.append($header);
+                    $UI.output.customHeadersUL.append(generateHeaderLI(header));
                 }
              }else{
                  $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${DATA.customPrefix}</code>`));
@@ -903,6 +877,53 @@ function renderCustomHeaders(){
         $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
     }
 }
+
+/**
+ * Render the *Basics* card.
+ */
+function renderBasicsCard(){
+    // empty the UL containing the data
+    $UI.output.basicsUL.empty();
+
+    // LEFT OFF HERE - need function to get a header value for a single-valued header thay may or may not be present
+
+    //$UI.output.basicsUL.append(generateHeaderLI({name: 'Subject', value: headers.subject ? headers.subject.value : ''}).addClass('fw-bold'));
+    //     $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
+    //     //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
+    //     //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
+    //     //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
+    //     const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
+    //     $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
+    //     if (headers['reply-to']){
+    //         if ((headers['reply-to'].value == headers.from.value)){
+    //             const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
+    //             $fromLI.append(' ').append($replyTo);
+    //         }else{
+    //             const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
+    //             $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
+    //             $fromLI.append(' ').append($replyTo);
+    //         }
+    //     }
+    //     if (headers['return-path']){
+    //         const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
+    //         $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
+    //         $fromLI.append(' ').append($returnPath);
+    //     }
+    //     $basicsUL.append($fromLI);
+    //     const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
+    //     $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
+    //     if (headers['delivered-to']){
+    //         const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
+    //         $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
+    //         $toLI.append(' ').append($deliveredTo);
+    //     } 
+    //     $basicsUL.append($toLI);
+    //     $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
+}
+
+//
+// === UN-CATEGORIESED ===
+//
 
 /**
  * Sanitise a raw mail header.
