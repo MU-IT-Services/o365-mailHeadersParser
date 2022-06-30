@@ -16,6 +16,20 @@
  */
 
 /**
+ * An object representing the canonical value of a header, i.e. the one header
+ * by that name that is operative in a given parse direction.
+ * @typedef {Object} CanonicalHeaderObject
+ * @property {string} name - The header's name according to the RFCs.
+ * @property {string} value - The header's canonical value.
+ * @property {string} [info=''] — Optional additional information about the
+ *   header.
+ * @property {string} [warning=''] - Optional warning text regarding the
+ *   header.
+ * @property {boolean} [hasError] — Optional flag to indicate there is a
+ *   problem with the header's value.
+ */
+
+/**
  * An object representing all the mail headers for an email.
  * @typedef {Object} HeaderSet
  * @property {HeaderObject[]} list - The headers in chronological order, i.e.
@@ -28,6 +42,13 @@
  *   custom.
  * @property {HeaderObject[]} listMatchingCustomPrefix - The headers that
  *   matched the custom prefix ordered from bottom to top.
+ * @property {('inbound' | 'outbound')} [parsedirection=''] - The direction the
+ *   mail is to be considered moving in, either 'inbound' to process the
+ *   headers from the receiver's POV, or 'outbound' to process from the
+ *   sender's POV.
+ * @property {Object} canonicalByID - Any canonical headers found while
+ *   parsing indexed by their ID.
+ * @property {string[]} warnings - Validation warnings as strings.
  */
 
 //
@@ -165,7 +186,10 @@ function generateBlankHeaderSet(){
         listAsReceived: [],
         byHeaderID: {},
         customPrefix: '',
-        listMatchingCustomPrefix: []
+        listMatchingCustomPrefix: [],
+        parsedirection: '',
+        canonicalByID: {},
+        warnings: []
     };
 }
 
@@ -252,12 +276,14 @@ function cloneHeader(headerObject){
  * Parse the headers or the entire raw source of an email into a header set.
  * 
  * @param {string} source
+ * @param {('inbound'|'outbound')} parseDirection
  * @param {string} [customHeadersPrefix]
  * @returns {HeaderSet}
  * @throws {TypeError} A Type Error is thrown on invalid args.
  */
-function parseSource(source, customHeadersPrefix = ''){
+function parseSource(source, parseDirection, customHeadersPrefix = ''){
     if(typeof source !== 'string') throw new TypeError('must pass a string to parse');
+    if(!(parseDirection == 'inbound' || parseDirection == 'outbound')) throw new TypeError("must pass a parse direction of 'inbound' or 'outbound'");
     if(typeof customHeadersPrefix !== 'string') throw new TypeError('if passed, the custom header prefix must be a string');
     
     // create an empty data structure and store the prefix
@@ -350,6 +376,36 @@ function parseSource(source, customHeadersPrefix = ''){
         }
     }
 
+    // validate and store the canonical headers, and any warnings generated in the process
+    const findHeaders = (n)=>{
+        const res = ans.byHeaderID[headerNameToID(n)];
+        return res ? res : [];
+    }
+    const requireExactlyOne = (n)=>{
+        const hList = findHeaders(n);
+        const hID = headerNameToID(n);
+        ans.canonicalByID[hID] = { name: n, value: '' };
+        if(hList && hList.length){
+            if(hList.length == 1){
+                ans.canonicalByID[hID].value = hList[0];
+            }else{
+                ans.canonicalByID[hID].value = JSON.stringify(hList);
+                ans.canonicalByID[hID].warning = `${hList.length} ${n} headers found`;
+                ans.canonicalByID[hID].hasError = true;
+                ans.warnings.push(`${hList.length} ${n} headers found, only one allowed`);
+            }
+        }else{
+            ans.canonicalByID[hID].warning = `no ${n} header found`;
+            ans.canonicalByID[hID].hasError = true;
+            ans.warnings.push(`missing ${n} header`);
+        }
+    };
+    
+    // validate and store the basic canonical headers
+    requireExactlyOne('From');
+    requireExactlyOne('Subject');
+    requireExactlyOne('Date');
+
     // return the assembled data structure
     return ans;
 }
@@ -378,6 +434,8 @@ let DATA = generateBlankHeaderSet();
  *   source or plain text headers.
  * @property {jQuery} form.customHeadersPrefix - The text box to enter the
  *   prefix for highlighting custom headers of interest.
+ * @property {jQuery} form.parseDirectionRG — The radio group representing the
+ *   direction (inbound/outbound) the headers should be parsed for.
  * @property {jQuery} form.parseButton — The button to process the input.
  * @property {Object} output — Output regions.
  * @property {Object} alerts - The div where output alerts should be appended.
@@ -396,6 +454,7 @@ const $UI = {
     form: {
         source: $(),
         customHeadersPrefix: $(),
+        parseDirectionRG: $(),
         parseButton: $()
     },
     output: {
@@ -412,6 +471,7 @@ const $UI = {
 $.when( $.ready ).then(function() {
     $UI.form.source = $('#fullHeaders-ta');
     $UI.form.customHeadersPrefix = $('#customHeadersPrefix-tb');
+    $UI.form.parseDirectionRG = $('input[type="radio"][name="parseAs-rbg"]')
     $UI.form.parseBtn = $('#process_btn');
     $UI.output.alerts = $('#parseAlerts_div');
     $UI.output.basicsUL = $('#basics-ul');
@@ -442,7 +502,7 @@ $.when( $.ready ).then(function() {
         // parse the source
         let newHeaders = {};
         try{
-            newHeaders = parseSource($UI.form.source.val(), $UI.form.customHeadersPrefix.val());
+            newHeaders = parseSource($UI.form.source.val(), $UI.form.parseDirectionRG.filter(':checked').val(), $UI.form.customHeadersPrefix.val());
             console.debug(`successfully parsed source, found ${DATA.list.length} header(s)`, DATA);
         }catch(err){
             showParseError('Failed to parse source 🙁');
@@ -458,6 +518,11 @@ $.when( $.ready ).then(function() {
 
         // all is well, so save the new headers
         DATA = newHeaders;
+
+        // show any parse warnings
+        for(const w of DATA.warnings){
+            showParseWarning(w);
+        }
 
         // genereate the security report
         const securityDetails = {
@@ -765,6 +830,17 @@ function generatePlaceholderLI(){
 }
 
 /**
+ * Output a parse warning alert.
+ * 
+ * @param {string} warningText
+ */
+ function showParseWarning(warningText){
+    $alert = $('<div>').addClass('alert alert-warning').text(warningText);
+    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
+    $UI.output.alerts.append($alert);
+}
+
+/**
  * Output a parse error alert.
  * 
  * @param {string} errorText
@@ -887,9 +963,9 @@ function renderBasicsCard(){
 
     // LEFT OFF HERE - need function to get a header value for a single-valued header thay may or may not be present
 
-    //$UI.output.basicsUL.append(generateHeaderLI({name: 'Subject', value: headers.subject ? headers.subject.value : ''}).addClass('fw-bold'));
+    // $UI.output.basicsUL.append(generateHeaderLI({name: 'Subject', value: headers.subject ? headers.subject.value : ''}).addClass('fw-bold'));
     //     $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
-    //     //$basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
+    // $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
     //     //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
     //     //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
     //     const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
