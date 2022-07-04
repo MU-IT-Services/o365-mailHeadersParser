@@ -29,12 +29,16 @@
  * @typedef {Object} CanonicalHeaderObject
  * @property {string} name - The header's name according to the RFCs.
  * @property {string} value - The header's canonical value.
+ * @property {string[]} [values] - An optional array of the original values
+ *   when there are multiple values found for the header.
  * @property {string} [info=''] — Optional additional information about the
  *   header.
  * @property {string} [warning=''] - Optional warning text regarding the
  *   header.
- * @property {boolean} [hasError] — Optional flag to indicate there is a
- *   problem with the header's value.
+ * @property {string} [error=''] - Optional error text regarding the
+ *   header.
+ * @property {boolean} [isMissing] - Optional flag to indicate the header is
+ *   required but no value was found for it.
  */
 
 /**
@@ -389,22 +393,30 @@ function cloneHeader(headerObject){
         const res = ans.byHeaderID[headerNameToID(n)];
         return res ? res : [];
     }
-    const requireExactlyOne = (n)=>{
+    const optionalSingleHeader = (n)=>{
         const hList = findHeaders(n);
         const hID = headerNameToID(n);
         ans.canonicalByID[hID] = { name: n, value: '' };
         if(hList && hList.length){
             if(hList.length == 1){
-                ans.canonicalByID[hID].value = hList[0];
+                ans.canonicalByID[hID].value = hList[0].value;
             }else{
-                ans.canonicalByID[hID].value = JSON.stringify(hList);
-                ans.canonicalByID[hID].warning = `${hList.length} ${n} headers found`;
-                ans.canonicalByID[hID].hasError = true;
+                ans.canonicalByID[hID].values = [];
+                for(const h of hList){
+                    ans.canonicalByID[hID].values.push(h.value);
+                }
+                ans.canonicalByID[hID].error = `${hList.length} ${n} headers found`;
                 ans.warnings.push(`${hList.length} ${n} headers found, only one allowed`);
             }
-        }else{
-            ans.canonicalByID[hID].warning = `no ${n} header found`;
-            ans.canonicalByID[hID].hasError = true;
+        }
+    };
+    const requireExactlyOne = (n)=>{
+        const hList = findHeaders(n);
+        const hID = headerNameToID(n);
+        optionalSingleHeader(n);
+        if(!(hList && hList.length)){
+            ans.canonicalByID[hID].error = `no ${n} header found`;
+            ans.canonicalByID[hID].isMissing = true;
             ans.warnings.push(`missing ${n} header`);
         }
     };
@@ -413,6 +425,11 @@ function cloneHeader(headerObject){
     requireExactlyOne('From');
     requireExactlyOne('Subject');
     requireExactlyOne('Date');
+    optionalSingleHeader('Reply-To');
+    optionalSingleHeader('Return-Path');
+    requireExactlyOne('To');
+    optionalSingleHeader('Delivered-To');
+    requireExactlyOne('Message-ID');
 
     // return the assembled data structure
     return ans;

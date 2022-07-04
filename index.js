@@ -97,7 +97,7 @@ $.when( $.ready ).then(function() {
         let newHeaders = {};
         try{
             newHeaders = parseSource($UI.form.source.val(), $UI.form.parseDirectionRG.filter(':checked').val(), $UI.form.customHeadersPrefix.val());
-            console.debug(`successfully parsed source, found ${DATA.list.length} header(s)`, DATA);
+            console.debug(`successfully parsed source, found ${newHeaders.list.length} header(s)`, newHeaders);
         }catch(err){
             showParseError('Failed to parse source 🙁');
             console.warn('failed to parse email source with error:', err);

@@ -56,16 +56,53 @@ function showParseError(errorText){
  * Generate a basic header list item. Both the header title and value are
  * rendered in a monospaced font.
  * 
- * The returned object will contain placeholder inline elements for the
- * header's name and value. These elements will have the classes
- * `.header-name` & `.header-value` respectively.
- * 
  * @param {HeaderObject} header
+ * @returns {jQuyery}
  */
 function generateHeaderLI(header){
     const $ans = $('<li class="list-group-item"><code class="header-name"></code><br><span class="font-monospace header-value"></span></li>');
     $('.header-name', $ans).text(header.name);
     $('.header-value', $ans).text(header.value);
+    return $ans;
+}
+
+/**
+ * Generate a header list item for a canonical header.
+ * 
+ * @param {CanonicalHeaderObject} canonicalHeader
+ * @returns {jQuyery}
+ */
+function generateCanonicalHeaderLI(canonicalHeader){
+    // start with just a header name placeholder with the name injected
+    const $ans = $('<li class="list-group-item"><code class="header-name"></code>: </li>');
+    $('.header-name', $ans).text(canonicalHeader.name);
+
+    // add a single value if appropriate
+    if(canonicalHeader.value || canonicalHeader.isMissing){
+        $ans.append($('<span>').addClass('font-monospace header-value'));
+        $('.header-value', $ans).text(canonicalHeader.isMissing ? 'UNKNOWN' : canonicalHeader.value);
+    }
+
+    // add multi-values if needed
+    const doShowMultiVals = canonicalHeader.values && canonicalHeader.values.length ? true : false;
+    if(doShowMultiVals){
+        const $multiValUL = $('<ul>').addClass('list-unstyled');
+        for(const val of canonicalHeader.values){
+            const $multiValLI = $('<li>');
+            $multiValLI.append($('<span>').addClass('font-monospace').text(val));
+            $multiValUL.append($multiValLI);
+        }
+        $ans.append($multiValUL);
+    }
+
+    // add error if needed
+    if(canonicalHeader.error){
+        $ans.addClass('list-group-item-warning');
+        if(!doShowMultiVals) $ans.append('<br>');
+        $ans.append($('<small>').addClass('fw-normal').text(canonicalHeader.error).prepend('<i class="bi bi-exclamation-triangle-fill"></i> '));
+    }
+
+    // return the LI
     return $ans;
 }
 
@@ -166,38 +203,42 @@ function renderBasicsCard(){
     // empty the UL containing the data
     $UI.output.basicsUL.empty();
 
-    // LEFT OFF HERE - need function to get a header value for a single-valued header thay may or may not be present
-
-    // $UI.output.basicsUL.append(generateHeaderLI({name: 'Subject', value: headers.subject ? headers.subject.value : ''}).addClass('fw-bold'));
-    //     $basicsUL.append(generateBasicsLI('Date', headers.date? headers.date.value : 'UNKNOWN'));
-    // $basicsUL.append(generateBasicsLI('From', headers.from ? headers.from.value : 'UNKNOWN').addClass('fw-bold'));
-    //     //if (headers['reply-to']) $basicsUL.append(generateBasicsLI('Reply To', headers['reply-to'].value));
-    //     //if (headers['return-path']) $basicsUL.append(generateBasicsLI('Return Path', headers['return-path'].value));
-    //     const $fromLI = $('<li class="list-group-item"><strong><code>From</code>: <span class="font-monospace from-header-value"></span></strong></li>');
-    //     $('.from-header-value', $fromLI).text(headers.from ? headers.from.value : 'UNKNOWN');
-    //     if (headers['reply-to']){
-    //         if ((headers['reply-to'].value == headers.from.value)){
-    //             const $replyTo = $('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary');
-    //             $fromLI.append(' ').append($replyTo);
-    //         }else{
-    //             const $replyTo = $('<small class="text-nowrap text-muted"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
-    //             $('.reply-to-header-value', $replyTo).text(headers['reply-to'].value);
-    //             $fromLI.append(' ').append($replyTo);
-    //         }
-    //     }
-    //     if (headers['return-path']){
-    //         const $returnPath = $('<small class="text-nowrap text-muted"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
-    //         $('.return-path-header-value', $returnPath).text(headers['return-path'].value);
-    //         $fromLI.append(' ').append($returnPath);
-    //     }
-    //     $basicsUL.append($fromLI);
-    //     const $toLI = $('<li class="list-group-item"><strong><code>To</code>: <span class="font-monospace to-header-value"></span></strong></li>');
-    //     $('.to-header-value', $toLI).text(headers.to? headers.to.value : 'UNKNOWN');
-    //     if (headers['delivered-to']){
-    //         const $deliveredTo = $('<small class="text-muted">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
-    //         $('.delivered-to-header-value', $deliveredTo).text(headers['delivered-to'].value);
-    //         $toLI.append(' ').append($deliveredTo);
-    //     } 
-    //     $basicsUL.append($toLI);
-    //     $basicsUL.append(generateBasicsLI('Message ID', headers['message-id']? headers['message-id'].value : 'UNKNOWN').addClass('fw-bold'));
+    $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.subject).addClass('fw-bold'));
+    $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.date));
+    const $fromLI = generateCanonicalHeaderLI(DATA.canonicalByID.from).addClass('fw-bold');
+    $UI.output.basicsUL.append($fromLI);
+    if(DATA.canonicalByID.reply_to.value){
+        if(DATA.canonicalByID.reply_to.error){
+            $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.reply_to));
+        }else{
+            if(DATA.canonicalByID.reply_to.value == DATA.canonicalByID.from.value){
+                $fromLI.append(' ').append($('<small>').html('<i class="bi bi-plus-circle"></i> Reply To').addClass('badge bg-secondary fw-normal'));
+            }else{
+                const $replyTo = $('<small class="text-nowrap text-muted fw-normal"><code>Reply-To</code>: <span class="font-monospace reply-to-header-value"></span></small>');
+                $('.reply-to-header-value', $replyTo).text(DATA.canonicalByID.reply_to.value);
+                $fromLI.append(' ').append($replyTo);
+            }
+        }
+    }
+    if(DATA.canonicalByID.return_path.error){
+        $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.return_path));
+    }else{
+        if(DATA.canonicalByID.return_path.value){
+            const $returnPath = $('<small class="text-nowrap text-muted fw-normal"><code>Return-Path</code>: <span class="font-monospace return-path-header-value"></span></small>');
+            $('.return-path-header-value', $returnPath).text(DATA.canonicalByID.return_path.value);
+            $fromLI.append(' ').append($returnPath);
+        }
+    }
+    const $toLI = generateCanonicalHeaderLI(DATA.canonicalByID.to).addClass('fw-bold');
+    $UI.output.basicsUL.append($toLI);
+    if(DATA.canonicalByID.delivered_to.error){
+        $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.delivered_to));
+    }else{
+        if(DATA.canonicalByID.delivered_to.value){
+            const $deliveredTo = $('<small class="text-muted fw-normal">Also delivered to <span class="font-monospace delivered-to-header-value"></span></small>');
+            $('.delivered-to-header-value', $deliveredTo).text(DATA.canonicalByID.delivered_to.value);
+            $toLI.append(' ').append($deliveredTo);
+        }
+    }
+    $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.message_id).addClass('fw-bold').addClass('fw-bold'));
 }
