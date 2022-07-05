@@ -5,7 +5,7 @@
 // handlers within theUI.
 
 //
-// === UI Utility Functions ===
+// === UI Component Generators ================================================
 //
 
 /**
@@ -28,28 +28,6 @@
     $ans = $('<div>').addClass('alert alert-warning mb-0');
     $ans.html('<i class="bi bi-exclamation-triangle-fill"></i> <strong>No Headers Processed Yet</strong> — use the form to enter headers or raw source for processing');
     return $ans;
-}
-
-/**
- * Output a parse warning alert.
- * 
- * @param {string} warningText
- */
- function showParseWarning(warningText){
-    $alert = $('<div>').addClass('alert alert-warning').text(warningText);
-    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
-    $UI.output.alerts.append($alert);
-}
-
-/**
- * Output a parse error alert.
- * 
- * @param {string} errorText
- */
-function showParseError(errorText){
-    $alert = $('<div>').addClass('alert alert-danger').text(errorText);
-    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
-    $UI.output.alerts.append($alert);
 }
 
 /**
@@ -107,7 +85,7 @@ function generateCanonicalHeaderLI(canonicalHeader){
 }
 
 //
-// === Form Validation Functions ===
+// === Form Validation Functions ==============================================
 //
 
 /**
@@ -147,11 +125,37 @@ function generateCanonicalHeaderLI(canonicalHeader){
 }
 
 //
-// === Output Rendering Functions ===
+// === UI Rendering Fuctions ==================================================
 //
 
 //
-// -- Rendering Functions --
+// -- Notification Functions --------------------------------------------------
+//
+
+/**
+ * Output a parse warning alert.
+ * 
+ * @param {string} warningText
+ */
+ function showParseWarning(warningText){
+    $alert = $('<div>').addClass('alert alert-warning').text(warningText);
+    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
+    $UI.output.alerts.append($alert);
+}
+
+/**
+ * Output a parse error alert.
+ * 
+ * @param {string} errorText
+ */
+function showParseError(errorText){
+    $alert = $('<div>').addClass('alert alert-danger').text(errorText);
+    $alert.prepend('<i class="bi bi-exclamation-triangle-fill"></i> ');
+    $UI.output.alerts.append($alert);
+}
+
+//
+// -- Component Renderers -----------------------------------------------------
 //
 
 /**
@@ -174,25 +178,6 @@ function generateCanonicalHeaderLI(canonicalHeader){
             $header.addClass('bg-success bg-opacity-10');
         }
         $UI.output.allHeadersUL.append($header);    
-    }
-}
-
-/**
- * Render the highlighted custom headers card, if any.
- */
-function renderCustomHeaders(){
-    // empty the list
-    $UI.output.customHeadersUL.empty();
-    if(DATA.customPrefix.length > 0){
-             if(DATA.listMatchingCustomPrefix.length > 0){
-                for(const header of DATA.listMatchingCustomPrefix){
-                    $UI.output.customHeadersUL.append(generateHeaderLI(header));
-                }
-             }else{
-                 $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-warning').html(`<i class="bi bi-exclamation-triangle-fill"></i> found no headers pre-fixed with <code>${DATA.customPrefix}</code>`));
-             }
-    }else{
-        $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
     }
 }
 
@@ -241,4 +226,23 @@ function renderBasicsCard(){
         }
     }
     $UI.output.basicsUL.append(generateCanonicalHeaderLI(DATA.canonicalByID.message_id).addClass('fw-bold').addClass('fw-bold'));
+}
+
+/**
+ * Render the *Custom Headers* card, if any.
+ */
+ function renderCustomHeadersCard(){
+    // empty the list
+    $UI.output.customHeadersUL.empty();
+    if(DATA.customPrefix.length > 0){
+             if(DATA.listMatchingCustomPrefix.length > 0){
+                for(const header of DATA.listMatchingCustomPrefix){
+                    $UI.output.customHeadersUL.append(generateHeaderLI(header));
+                }
+             }else{
+                 $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html(`<i class="bi bi-info-circle-fill"></i> found no headers pre-fixed with <code>${DATA.customPrefix}</code>`));
+             }
+    }else{
+        $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));
+    }
 }

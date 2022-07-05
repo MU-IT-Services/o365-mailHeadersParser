@@ -7,7 +7,7 @@
 // needed.
 
 //
-// === JSDoc Type Defs ===
+// === JSDoc Type Defs ========================================================
 //
 
 /**
@@ -281,8 +281,436 @@ function cloneHeader(headerObject){
 }
 
 //
-// === Header Parsing Functions ===
+// === Microsoft-spcific Parsing Funtions =====================================
 //
+
+/**
+ * Convert a compauth reason code into a meaning.
+ * 
+ * If invalid arguments are passed the string `'INVALID CODE'` and the code are returned.
+ * 
+ * @param {(string|number)} code - a three-digit number as a string or number.
+ * @returns {string}
+ */
+ function compoundAuthenticationReason(code){
+    code = String(code); // force the code to a string
+
+    // validate the code
+    const codeMatch = code.match(/^(\d)(\d\d)$/);
+    if(!codeMatch) return `INVALID CODE: ${code}`
+    const leadingDigit = codeMatch[1];
+    const trailingDigits = codeMatch[2];
+
+    // try find a real answer
+    switch(leadingDigit){
+        case '0':
+            switch(trailingDigits){
+                case '00':
+                    return 'explicit failure - sending domain published DMARC/DKIM/SPF records';
+                case '01':
+                    return 'implicit failure - sending domain published no DMARC/DKIM/SPF records, or non-enforcing records';
+                case '02':
+                    return 'enforced failure - mail rule in place to enforce DMARC/DKIM/SPF even if the records are non-enforcing';
+                case '10':
+                    return 'exempted failure - the message failed DMARC but the domain is on the allow-list';
+            }
+            return 'generic failure';
+            break;
+        case '1':
+        case '7':
+            return 'explicit pass';
+        case '2':
+            return 'implicit pass';
+        case '3':
+            return 'not checked';
+        case '4':
+        case '9':
+            return 'skipped';
+        case '6':
+            'exempted failure - the message failed compauth, but the domain is on the allow-list';
+    }
+
+    // if all else fails, return unknown
+    return `UNKNOWN CODE: ${code}`;
+}
+
+/**
+ * Convert an SCL (Spam Confidence Level) to a human-friendly description.
+ * 
+ * @see {@link https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/spam-confidence-levels?view=o365-worldwide}
+ * @param {number} scl 
+ * @returns {string}
+ */
+function sclMeaning(scl = -2){ // force to an invalid value of none passed
+    scl = parseInt(scl); // force to integer
+
+    // deal with valid values
+    if(scl === -1) return 'not scored';
+    if(scl === 0 || scl === 1) return 'not spam';
+    if(scl === 5 || scl === 6) return 'spam';
+    if(scl === 9) return 'high-confidence spam';
+
+    // if all else fails, return 'UNKNOWN'
+    return 'UNKNOWN'
+}
+
+/**
+ * Convert a BCL (Bulk Mail Confidence Level) to a human-friendly description.
+ * 
+ * @param {number} scl 
+ * @returns {string}
+ * @see {@link https://docs.microsoft.com/en-us/microsoft-365/security/office-365-security/bulk-complaint-level-values?view=o365-worldwide}
+ */
+ function bclMeaning(bcl = -2){ // force to an invalid value of none passed
+    bcl = parseInt(bcl); // force to integer
+
+    // deal with valid values
+    if(bcl === 0) return 'not from bulk mail sender';
+    if(bcl <= 3) return 'from bulk mail sender with few user complaints';
+    if(bcl <= 7) return 'from bulk mail sender with some user complaints';
+    if(vcl <= 9) return 'from bulk mail sender with many user complaints';
+
+    // if all else fails, return 'UNKNOWN'
+    return 'UNKNOWN'
+}
+
+/**
+ * Parse an authentication results header.
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   authenticationResultsHeaderSpecified: true,
+ *   compoundAuthentication: {
+ *     result: 'unknown',
+ *     reasonCode: '000',
+ *     reasonMeaning: 'UNKNOWN'
+ *   },
+ *   dkim: {
+ *     result: 'unknown',
+ *     details: 'no additional info'
+ *   },
+ *   dmarc: {
+ *     result: 'unknown',
+ *     action: 'unknown',
+ *     details: 'no additional info'
+ *   },
+ *   spf: {
+ *     result: 'unknown',
+ *     details: 'no additional info'
+ *   }
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+ function parseAuthResultHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = headerVal.replace(/^Authentication-Results:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
+
+    // initiaise the return value
+    const ans = {
+        authenticationResultsHeaderSpecified: true,
+        compoundAuthentication: {
+            result: 'unknown',
+            reasonCode: '000',
+            reasonMeaning: 'UNKNOWN'
+        },
+        dkim: {
+            result: 'unknown',
+            details: 'no additional info'
+        },
+        dmarc: {
+            result: 'unknown',
+            action: 'unknown',
+            details: 'no additional info'
+        },
+        spf: {
+            result: 'unknown',
+            details: 'no additional info'
+        }
+    };
+
+    // split the value on semi-colon to get the various parts
+    const headerParts = headerVal.trim().split(/;[ ]?/);
+
+    // process each part
+    for(const headerPart of headerParts){
+        // skip empty part caused by trailing ;
+        if(headerPart === '') continue;
+
+        // get the part name and act appropriatey
+        const headerPartMatch = headerPart.match(/^(\w+)=(\w+)[ ]?(.*)$/);
+        if(headerPartMatch){
+            const partName = headerPartMatch[1];
+            const partOutcome = headerPartMatch[2];
+            let partDetails = headerPartMatch[3];
+
+            switch(partName){
+                case 'compauth':
+                    // store the overall result and details
+                    ans.compoundAuthentication.result = partOutcome;
+                    ans.compoundAuthentication.details = headerPart;
+
+                    // parse the remainder of the entry
+                    const reasonMatch = partDetails.match(/\breason=(\d{3})\b/);
+                    if(reasonMatch){
+                        const reasonCode = reasonMatch[1];
+                        ans.compoundAuthentication.reasonCode = reasonCode;
+                        ans.compoundAuthentication.reasonMeaning = compoundAuthenticationReason(reasonCode);
+
+                    }else{
+                        console.warn('failed to parse compound authentication reason');
+                    }
+                    break;
+                case 'dmarc':
+                    // store the overall result
+                    ans.dmarc.result = partOutcome;
+
+                    // parse the action
+                    const dmarcActionMatch = partDetails.match(/\baction=([\w\d]+)\b/);
+                    if(dmarcActionMatch){
+                        ans.dmarc.action = dmarcActionMatch[1];
+                    }else{
+                        console.warn('failed to parse dmarc details', partDetails);
+                    }
+                    ans.dmarc.details = partDetails;
+                    break;
+                case 'dkim':
+                case 'spf':
+                    // store the overall result
+                    ans[partName].result = partOutcome;
+
+                    // strip any brackets that completely wrap the description
+                    partDetails = partDetails.trim().replace(/^[(](.+)[)]$/, '$1');
+
+                    // store the details
+                    if(partDetails) ans[partName].details = partDetails;
+
+                    break;
+                default:
+                    console.debug('unexpected header part name', partName, headerPart);        
+            }
+        }else{
+            console.debug('failed to parse authentiation result header part', headerPart);
+        }
+    }
+    
+    //return the result
+    return ans;
+}
+
+/**
+ * Parse an original authentication results header (pre-quarantine authentication result).
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   OriginalAuthenticationResultsHeaderSpecified: true,
+ *   originalAuthResult: 'unknown'
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+ function parseOriginalAuthResultHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = headerVal.replace(/^Authentication-Results-Original:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
+
+    // initiaise the return value
+    const ans = {
+        OriginalAuthenticationResultsHeaderSpecified: true,
+        originalAuthResult: 'unknown'
+    };
+
+    // try extract the auth result
+    const authResultMatch = headerVal.match(/\bauth=(\w+)\b/);
+    if(authResultMatch){
+        ans.originalAuthResult = authResultMatch[1];
+    }else{
+        console.debug('failed to parse original authentiation result header', headerVal);
+    }
+    
+    //return the result
+    return ans;
+}
+
+/**
+ * Parse a sanitised Office365 Forefront Span Report Header.
+ * 
+ * @see sanitiseMailHeader
+ * @param {string} input 
+ * @returns {object} Returns a plain object of the form:
+ * ```
+ * {
+ *   spamReportHeaderSpecified: true,
+ *   messageCategorisation: 'NONE',
+ *   sender: {
+ *     countryCode: 'DE',
+ *     smtpHeloString: 'some.fqdn',
+ *     ip: '1.2.3.4',
+ *     ipReputation: 'none',
+ *     ipReverseDNS: 'some.fqdn'
+ *   },
+ *   spamScore: 1,
+ *   spamFilterAction: 'none',
+ *   spoofingDetected: 'none',
+ *   flaggedDueToUserComplaints: false,
+ *   releasedFromQuarantine: false
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+function parseForefrontSpamReportHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = headerVal.replace(/^X-Forefront-Antispam-Report:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
+
+    // break the header down into its parts
+    const header = {};
+    let headerFields = headerVal.split(/;[ ]?/);
+    for(const field of headerFields){
+        if(field === '') continue;
+        const fieldMatch = field.match(/^(\w+):(.*)$/)
+        if(fieldMatch){
+            header[fieldMatch[1]] = fieldMatch[2];
+        }else{
+            console.debug('failed to parse field', field);
+        }
+    }
+
+    // assemble the return value
+    const ans = {
+        spamReportHeaderSpecified: true,
+        messageCategorisation: MAIL_CATEGORISATION_CODES[header.CAT] ? MAIL_CATEGORISATION_CODES[header.CAT] : header.CAT,
+        sender: {
+            countryCode: header.CTRY || 'UNKNOWN',
+            smtpHeloString: header.H,
+            ip: header.CIP || '',
+            ipReputation: 'none',
+            ipReverseDNS: header.PTR
+        },
+        spamScore: parseInt(header.SCL) || -1,
+        spamFilterAction: SPAM_FILTER_ACTION_CODES[header.SFV] ? SPAM_FILTER_ACTION_CODES[header.SFV] : 'none',
+        spoofingDetected: 'none',
+        flaggedDueToUserComplaints: header.SRV == 'BULK' ? true : false,
+        releasedFromQuarantine: header.SFV == 'SKQ' ? true : false
+    };
+    if(header.IPV === 'CAL'){
+        ans.sender.ipReputation = 'allow-listed';
+    }else if(header.IPV === 'NLI'){
+        ans.sender.ipReputation = 'not on any reputation lists';
+    }
+    if(header.SFTY == '9.19'){
+        ans.spoofingDetected = 'user'
+    }else if(header.SFTY == '9.20'){
+        ans.spoofingDetected = 'domain'
+    }
+    return ans;
+}
+
+/**
+ * Parse a Microsoft Anti-Spam header.
+ * 
+ * @param {string} input 
+ * @return {object} Returns an object of the form:
+ * ```
+ * {
+ *   bulkMailReportHeaderSpecified: true,
+ *   bulkMailScore: 1
+ * }
+ * ```
+ * @throws {TypeError} A Type Error is thrown if a string is not passed.
+ * @throws {RangeError} A Range Error is thrown if an invalid string is passed.
+ */
+function parseMicrosoftAntiSpamHeader(input){
+    if(typeof input !== 'string') throw new TypeError('must pass a string');
+
+    // sanitise the header value
+    let headerVal = sanitiseMailHeader(input);
+
+    // strip off the header name (if present)
+    headerVal = headerVal.replace(/^X-Microsoft-Antispam:[ ]/, '');
+
+    // if the header has no value, return an empty object
+    if(headerVal === '') return {};
+
+    // extract the BCL and return
+    const bclMatch = input.match(/BCL:(\d+)/);
+    return {
+        bulkMailReportHeaderSpecified: true,
+        bulkMailScore: bclMatch ? parseInt(bclMatch[1]) : -1
+    };
+}
+
+//
+// === Generic Header Parsing Functions =======================================
+//
+
+/**
+ * Sanitise a raw mail header.
+ * 
+ * This function:
+ * 1. trims the string
+ * 2. collapses all whate space down to a single space
+ * 
+ * @param {string} input 
+ * @returns {string}
+ * @throws {TypeError} A type error is thrown if something other than a string is passed.
+ */
+ function sanitiseMailHeader(input){
+    if(typeof input !== 'string') throw new TypeError('requires a string');
+    return input.replace(/[\s]+/g, ' ').trim();
+}
+
+/**
+ * Check if something is a plausible mail header.
+ * 
+ * A header must be a single-line string that starts with a header name
+ * followed by a colon.
+ * 
+ * @param {string} input
+ * @returns {boolean}
+ */
+ function isValidHeader(input){
+    // make sure we have a string
+    if(typeof input !== 'string') return false;
+
+    // make sure the string starts with the expected text
+    if(!input.match(/^[-\w\d]+:/)) return false;
+
+    // make sure the string is a single line
+    if(input.split(/\r\n|\r|\n/).length !== 1) return false;
+
+    // if we got here all is well, so return true
+    return true;
+}
 
 /**
  * Parse the headers or the entire raw source of an email into a header set.
