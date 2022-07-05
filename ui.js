@@ -4,6 +4,50 @@
 // Functions for rendering the UI, these functions should be called by event
 // handlers within theUI.
 
+/**
+ * A dictionary providing easy access to jQuery objects representing the
+ * important UI elements.
+ * 
+ * This data structure is initialised in the document ready handler.
+ * 
+ * @type {Object}
+ * @property {boolean} initialised
+ * @property {Object} form - The form elements.
+ * @property {jQuery} form.source - The text area for entering the message
+ *   source or plain text headers.
+ * @property {jQuery} form.customHeadersPrefix - The text box to enter the
+ *   prefix for highlighting custom headers of interest.
+ * @property {jQuery} form.parseDirectionRG — The radio group representing the
+ *   direction (inbound/outbound) the headers should be parsed for.
+ * @property {jQuery} form.parseButton — The button to process the input.
+ * @property {Object} output — Output regions.
+ * @property {Object} alerts - The div where output alerts should be appended.
+ * @property {jQuery} basicsUL - The unordered list to inject the basics into.
+ * @property {jQuery} securityAnalysisUL - The unordered list to inject the
+ *   security analysis into.
+ * @property {jQuery} customHeadersUL - The unordered list to inject the custom
+ *   headers into.
+ * @property {jQuery} securityReportDiv - The `div` containing the security
+ *   report.
+ * @property {jQuery} allHeadersUL - The unordered list the full list of headers
+ *   should be injected into.
+ */
+ const $UI = {
+    initialised: false,
+    form: {
+        source: $(),
+        customHeadersPrefix: $(),
+        parseDirectionRG: $(),
+        parseButton: $()
+    },
+    output: {
+        basicsUL: $(),
+        securityAnalysisUL: $(),
+        customHeadersUL: $(),
+        securityReportDiv: $()
+    }
+};
+
 //
 // === UI Component Generators ================================================
 //
@@ -182,6 +226,19 @@ function showParseError(errorText){
 }
 
 /**
+ * Render the full security report JSON.
+ */
+function renderSecurityReport(){
+    $UI.output.securityReportDiv.empty();
+    if(Object.keys(DATA.securityReport).length > 0){
+             const $securityReport = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(DATA.securityReport, {}));
+             $UI.output.securityReportDiv.append($securityReport);
+    }else{
+        $UI.output.securityReportDiv.append($('<div>').addClass('alert alert-info').html('<i class="bi bi-info-circle-fill"></i> No secrity/spam headers found'));
+    }
+}
+
+/**
  * Render the *Basics* card.
  */
 function renderBasicsCard(){
@@ -240,7 +297,7 @@ function renderBasicsCard(){
                     $UI.output.customHeadersUL.append(generateHeaderLI(header));
                 }
              }else{
-                 $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html(`<i class="bi bi-info-circle-fill"></i> found no headers pre-fixed with <code>${DATA.customPrefix}</code>`));
+                 $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html(`<i class="bi bi-info-circle-fill"></i> No headers pre-fixed with <code>${DATA.customPrefix}</code> found`));
              }
     }else{
         $UI.output.customHeadersUL.append($('<li>').addClass('list-group-item list-group-item-info').html('<strong><i class="bi bi-info-circle-fill"></i> No custom prefix specified</strong> — enter a prefix in the form to spotlight matching headers'));

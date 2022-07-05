@@ -15,50 +15,6 @@
  */
 let DATA = generateBlankHeaderSet();
 
-/**
- * A dictionary providing easy access to jQuery objects representing the
- * important UI elements.
- * 
- * This data structure is initialised in the document ready handler.
- * 
- * @type {Object}
- * @property {boolean} initialised
- * @property {Object} form - The form elements.
- * @property {jQuery} form.source - The text area for entering the message
- *   source or plain text headers.
- * @property {jQuery} form.customHeadersPrefix - The text box to enter the
- *   prefix for highlighting custom headers of interest.
- * @property {jQuery} form.parseDirectionRG — The radio group representing the
- *   direction (inbound/outbound) the headers should be parsed for.
- * @property {jQuery} form.parseButton — The button to process the input.
- * @property {Object} output — Output regions.
- * @property {Object} alerts - The div where output alerts should be appended.
- * @property {jQuery} basicsUL - The unordered list to inject the basics into.
- * @property {jQuery} securityAnalysisUL - The unordered list to inject the
- *   security analysis into.
- * @property {jQuery} customHeadersUL - The unordered list to inject the custom
- *   headers into.
- * @property {jQuery} securityReportDiv - The `div` containing the security
- *   report.
- * @property {jQuery} allHeadersUL - The unordered list the full list of headers
- *   should be injected into.
- */
-const $UI = {
-    initialised: false,
-    form: {
-        source: $(),
-        customHeadersPrefix: $(),
-        parseDirectionRG: $(),
-        parseButton: $()
-    },
-    output: {
-        basicsUL: $(),
-        securityAnalysisUL: $(),
-        customHeadersUL: $(),
-        securityReportDiv: $()
-    }
-};
-
 //
 // === The Document ready handler =============================================
 //
@@ -118,20 +74,15 @@ $.when( $.ready ).then(function() {
             showParseWarning(w);
         }
 
-        // genereate the security report
-        const securityDetails = {
-    //         ...(headers.authentication_results ? parseAuthResultHeader(headers.authentication_results.value) : {}),
-    //         ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
-    //         ...(headers.x_forefront_antispam_report ? parseForefrontSpamReportHeader(headers.x_forefront_antispam_report.value) : {}),
-    //         ...(headers.x_microsoft_antispam ? parseMicrosoftAntiSpamHeader(headers.x_microsoft_antispam.value) : {})
-        };
-        console.debug(securityDetails);
-
         // render the full header list
         renderAllHeaders();
 
+        // render the full security report
+        renderSecurityReport();
+
         // render the info cards
         renderBasicsCard();
+        //renderSecurityReportCard();
         renderCustomHeadersCard();
 
     //     // render the full security report

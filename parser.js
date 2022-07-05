@@ -61,6 +61,8 @@
  * @property {Object} canonicalByID - Any canonical headers found while
  *   parsing indexed by their ID.
  * @property {string[]} warnings - Validation warnings as strings.
+ * @property {Object} securityReport — The aggregated results from parsing the
+ *   Microsoft spam/security headers. TO DO - document this data structure!
  */
 
 //
@@ -201,7 +203,8 @@ const SPAM_FILTER_ACTION_CODES = {
         listMatchingCustomPrefix: [],
         parsedirection: '',
         canonicalByID: {},
-        warnings: []
+        warnings: [],
+        securityReport: {}
     };
 }
 
@@ -848,6 +851,18 @@ function parseMicrosoftAntiSpamHeader(input){
             ans.warnings.push(`missing ${n} header`);
         }
     };
+    const takeOne = (n)=>{
+        const hList = findHeaders(n);
+        const hID = headerNameToID(n);
+        ans.canonicalByID[hID] = { name: n, value: '' };
+        if(hList && hList.length){
+            if(hList.length == 1 || parseDirection == 'outbound'){
+                ans.canonicalByID[hID].value = hList[0].value;
+            }else{
+                ans.canonicalByID[hID].value = hList[hList.length - 1].value;
+            }
+        }
+    };
     
     // validate and store the basic canonical headers
     requireExactlyOne('From');
@@ -858,6 +873,19 @@ function parseMicrosoftAntiSpamHeader(input){
     requireExactlyOne('To');
     optionalSingleHeader('Delivered-To');
     requireExactlyOne('Message-ID');
+
+    // look for the appropriate Microsoft-specific security headers
+    takeOne('Authentication-Results');
+    takeOne('X-Forefront-Antispam-Report');
+    takeOne('X-Microsoft-Antispam');
+
+    // generate the security report based on the Microsoft headers
+    ans.securityReport = {
+        ...parseAuthResultHeader(ans.canonicalByID.authentication_results.value),
+    //    ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
+        ...parseForefrontSpamReportHeader(ans.canonicalByID.x_forefront_antispam_report.value),
+        ...parseMicrosoftAntiSpamHeader(ans.canonicalByID.x_microsoft_antispam.value)
+    };
 
     // return the assembled data structure
     return ans;
