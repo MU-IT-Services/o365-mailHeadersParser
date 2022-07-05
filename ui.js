@@ -286,7 +286,252 @@ function renderBasicsCard(){
 }
 
 /**
- * Render the *Custom Headers* card, if any.
+ * Render the *Security Report* card.
+ */
+function renderSecurityReportCard(){
+    $UI.output.securityAnalysisUL.empty();
+
+    // a local function to render an info tooltip within the security analysis
+    const appendInfo = ($li, info)=>{
+        const $info = $('<i class="bi bi-info-circle-fill"></i>').attr('title', info);
+        new bootstrap.Tooltip($info[0]);
+        $li.append(' ').append($info);
+    };
+
+    // start with the authentication results header
+    if(DATA.securityReport.authenticationResultsHeaderSpecified){
+        // start with compound auth
+        const $compAuthLI = $('<li>').addClass('list-group-item').html('<strong>Compound Authentication:</strong> ');
+        const appendCompauthReason = ($li)=>{
+            if(DATA.securityReport.compoundAuthentication.reasonCode !== '000'){
+                $info = $('<span>').addClass('text-muted').html(' <code class="code"></code> <span class="meaning"></span>');
+                $('.code', $info).text(DATA.securityReport.compoundAuthentication.reasonCode);
+                $('.meaning', $info).text(DATA.securityReport.compoundAuthentication.reasonMeaning);
+                $li.append($info);
+            }
+        };
+        switch(DATA.securityReport.compoundAuthentication.result){
+            case 'pass':
+            case 'softpass':
+                $compAuthLI.append($('<span>').addClass('badge bg-success').text(DATA.securityReport.compoundAuthentication.result));
+                appendCompauthReason($compAuthLI);
+                break;
+            case 'none':
+                $compAuthLI.append($('<span>').addClass('badge bg-warning').text('NOT PERFORMED'));
+                appendCompauthReason($compAuthLI);
+                break;
+            case 'fail':
+                $compAuthLI.append($('<span>').addClass('badge bg-danger').text('FAIL'));
+                appendCompauthReason($compAuthLI);
+                break;
+            case 'unknown':
+                $compAuthLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No Compound Auhentication details found in <code>Authentication-Results</code> header'));
+                break;
+            default:
+                $compAuthLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${DATA.securityReport.compoundAuthentication.result}</code>`));
+        }
+        $UI.output.securityAnalysisUL.append($compAuthLI);
+
+        // local function for adding details to SFP, DKIM, or DMARC
+        const appendDetails = ($li, result)=>{
+            $li.append('<br>').append($('<small>').addClass('text-muted font-monospace').text(result.details));
+        };
+
+        // add SPF
+        const $spfLI = $('<li>').addClass('list-group-item').html('<strong>SPF Validation:</strong> ');
+        switch(DATA.securityReport.spf.result){
+            case 'none':
+                $spfLI.append($('<span>').addClass('badge bg-secondary').text('no SPF record'));
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'pass':
+                $spfLI.append($('<span>').addClass('badge bg-success').text('pass'));
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'neutral':
+                $spfLI.append($('<span>').addClass('badge bg-primary').text('neutral'));
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'fail':
+                $spfLI.append($('<span>').addClass('badge bg-danger').text(DATA.securityReport.spf.result));
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'softfail':
+                $spfLI.append($('<span>').addClass('badge bg-danger').text('soft fail'));
+                appendInfo($spfLI, 'sender denied but SPF record is permissive (~all), not enforcing (-all)');
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'temperror':
+                $spfLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
+                appendInfo($spfLI, 'SPF processing failed because of a temporary problem, usually a DNS lookup failure');
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'permerror':
+                $spfLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
+                appendInfo($spfLI, 'SPF processing failed because of a problem with the record, usally a syntax error in the record itself');
+                appendDetails($spfLI, DATA.securityReport.spf);
+                break;
+            case 'unknown':
+                $spfLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No SPF details found in <code>Authentication-Results</code> header'));
+                break;
+            default:
+            $spfLI.append($('<strong>').addClass('text-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${DATA.securityReport.spf.result}</code>'));
+        }
+        $UI.output.securityAnalysisUL.append($spfLI);
+
+        // add DKIM
+        const $dkimLI = $('<li>').addClass('list-group-item').html('<strong>DKIM Validation:</strong> ');
+        switch(DATA.securityReport.dkim.result){
+            case 'none':
+                $dkimLI.append($('<span>').addClass('badge bg-secondary').text('message not signed'));
+                break;
+            case 'pass':
+                $dkimLI.append($('<span>').addClass('badge bg-success').text('pass'));
+                appendDetails($dkimLI, DATA.securityReport.dkim);
+                break;
+            case 'fail':
+                $dkimLI.append($('<span>').addClass('badge bg-danger').text(DATA.securityReport.dkim.result));
+                appendDetails($dkimLI, DATA.securityReport.dkim);
+                break;
+            case 'unknown':
+                $dkimLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+                break;
+            default:
+                $dkimLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${DATA.securityReport.dkim.result}</code>`));
+        }
+        $UI.output.securityAnalysisUL.append($dkimLI);
+
+        // add DMARC
+        const $dmarcLI = $('<li>').addClass('list-group-item').html('<strong>DMARC Validation:</strong> ');
+        switch(DATA.securityReport.dmarc.result){
+            case 'none':
+                $dmarcLI.append($('<span>').addClass('badge bg-secondary').text('no DMARC record'));
+                break;
+            case 'pass':
+                $dmarcLI.append($('<span>').addClass('badge bg-success').text('pass'));
+                appendDetails($dmarcLI, DATA.securityReport.dmarc);
+                break;
+            case 'bestguesspass':
+                $dmarcLI.append($('<span>').addClass('badge bg-success').text('inferred pass'));
+                appendInfo($dmarcLI, 'There is no DMARC record for the domain, but if a typical record existed, it would have passed');
+                appendDetails($dmarcLI, DATA.securityReport.dmarc);
+                reak;
+            case 'fail':
+                $dmarcLI.append($('<span>').addClass('badge bg-danger').text(DATA.securityReport.dmarc.result));
+                appendDetails($dmarcLI, DATA.securityReport.dmarc);
+                break;
+            case 'temperror':
+                $dmarcLI.append($('<span>').addClass('badge bg-warning').text('temporary error'));
+                appendInfo($dmarcLI, 'DMARC processing failed because of a temporary problem, usually a DNS lookup failure');
+                appendDetails($dmarcLI, DATA.securityReport.dmarc);
+                break;
+            case 'permerror':
+                $dmarcLI.append($('<span>').addClass('badge bg-danger').text('permanent error'));
+                appendInfo($dmarcLI, "DMARC processing failed because of a problem retrieving or processing the DNS record. This usually happens when there is a syntax error in the record, or, when the domain name doesn't reslove on the public internet (e.g. cron on a host without a public DNS name).");
+                appendDetails($dmarcLI, DATA.securityReport.dmarc);
+                break;
+            case 'unknown':
+                $dmarcLI.append($('<strong>').addClass('text-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> No DKIM details found in <code>Authentication-Results</code> header'));
+                break;
+            default:
+            $dmarcLI.append($('<strong>').addClass('text-danger').html(`<i class="bi bi-exclamation-octagon-fill"></i> Failed to parse — unexpected result <code>${DATA.securityReport.dmarc.result}</code>`));
+        }
+        $UI.output.securityAnalysisUL.append($dmarcLI);
+    }else{
+        $UI.output.securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>Authentication-Results</code> header found'));
+    }
+
+    // next the spam report header
+    if(DATA.securityReport.spamReportHeaderSpecified){
+        // start with the spam score
+        const $spamScoreLI = $('<li>').addClass('list-group-item').html('<strong>Spam Filter:</strong> ');
+        const $scl = $('<span>').addClass('badge').html('SCL <span class="code font-monospace"></span> — <span class="meaning"></span>');
+        const sclDesc = sclMeaning(DATA.securityReport.spamScore);
+        $('.code', $scl).text(DATA.securityReport.spamScore);
+        $('.meaning', $scl).text(sclDesc);
+        switch(sclDesc){
+            case 'not spam':
+                $scl.addClass('bg-success');
+                break;
+            case 'spam':
+            case 'high confidence spam':
+                $scl.addClass('bg-danger');
+                break;
+            default:
+                $scl.addClass('bg-secondary');
+        }
+        $spamScoreLI.append($scl);
+        if(DATA.securityReport.spamFilterAction !== 'none'){
+            $spamScoreLI.append(' ').append($('<span>').text(DATA.securityReport.spamFilterAction));
+        }
+        $UI.output.securityAnalysisUL.append($spamScoreLI);
+            
+        // finish with the quarantine info
+        const $quarantineLI = $('<li>').addClass('list-group-item').html('<strong>Quarantine Details:</strong> ');
+        const $quarantinedBadge = $('<span>').addClass('badge');
+        if(DATA.securityReport.releasedFromQuarantine){
+            // the mail was relesed from quarantine
+            $quarantinedBadge.text('Released from Quarantine').addClass('bg-warning');
+        }else{
+            // the mail was not quarantined
+            $quarantinedBadge.text('Not Quarantined').addClass('bg-success');
+        }
+        $quarantineLI.append($quarantinedBadge);
+        if(DATA.securityReport.releasedFromQuarantine){
+            if(DATA.securityReport.OriginalAuthenticationResultsHeaderSpecified){
+                const $originalAuthResult = $('<span>').text(DATA.securityReport.originalAuthResult).addClass('badge');
+                switch(DATA.securityReport.originalAuthResult){
+                    case 'fail':
+                        $originalAuthResult.addClass('bg-error');
+                        break;
+                    case 'pass':
+                        $originalAuthResult.addClass('bg-success');
+                        break;
+                    default:
+                        $originalAuthResult.addClass('bg-danger');
+                }
+                $quarantineLI.append('<br>').append($('<small>').text('Pre-quarantine Authentication Result: ').addClass('text-muted').append($originalAuthResult));
+            }else{
+                $quarantineLI.append('<br>').append($('<small>').text('No pre-quarantine authentication header found').addClass('text-muted fst-italic'));
+            }
+        }
+        $UI.output.securityAnalysisUL.append($quarantineLI);
+    }else{
+        $UI.output.securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Forefront-Antispam-Report</code> header found'));
+    }
+
+    // next the bulk mail header
+    if(DATA.securityReport.bulkMailReportHeaderSpecified){
+        const $bulkMailScoreLI = $('<li>').addClass('list-group-item').html('<strong>Bulk Mail Filter:</strong> ');
+        const $bcl = $('<span>').html('<span class="badge">BCL <span class="code font-monospace"></span></span> <span class="meaning text-muted"></span>');
+        const bclDesc = bclMeaning(DATA.securityReport.bulkMailScore);
+        $('.code', $bcl).text(DATA.securityReport.bulkMailScore);
+        $('.meaning', $bcl).text(bclDesc);
+        if(bclDesc === 'not from bulk mail sender' || bclDesc.includes('few user complaints')){
+            $('.badge', $bcl).addClass('bg-success');
+        }else if(bclDesc.includes('some user complaints')){
+            $('.badge', $bcl).addClass('bg-warning');
+        }else if(bclDesc.includes('many user complaints')){
+            $('.badge', $bcl).addClass('bg-danger');
+        }else{
+            $('.badge', $bcl).addClass('bg-secondary');
+        }
+        $bulkMailScoreLI.append($bcl);
+        $UI.output.securityAnalysisUL.append($bulkMailScoreLI);
+    }else{
+        $UI.output.securityAnalysisUL.append($('<li>').addClass('list-group-item list-group-item-warning').html('<i class="bi bi-exclamation-triangle-fill"></i> no <code>X-Microsoft-Antispam</code> header found'));
+    }
+
+    // end with the details to submit the mail to Microsoft for review
+    if(DATA.canonicalByID.x_ms_exchange_organization_network_message_id.value){
+        const $submitToMSLI = $('<li>').addClass('list-group-item list-group-item-info')
+        $submitToMSLI.html(`<i class="bi bi-info-circle"></i> If this mail was mishandled by Micorosft's filters you can submit it for review using the Network Message ID <code>${DATA.canonicalByID.x_ms_exchange_organization_network_message_id.value}</code>. <a href="https://security.microsoft.com/reportsubmission?viewid=admin" rel="nofollow" target="_blank" class="btn btn-outline-primary btn-sm">Submit to MS <i class="bi bi-box-arrow-up-right"></i></a>`);
+        $UI.output.securityAnalysisUL.append($submitToMSLI);
+    }
+}
+
+/**
+ * Render the *Custom Headers* card.
  */
  function renderCustomHeadersCard(){
     // empty the list

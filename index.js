@@ -82,19 +82,8 @@ $.when( $.ready ).then(function() {
 
         // render the info cards
         renderBasicsCard();
-        //renderSecurityReportCard();
+        renderSecurityReportCard();
         renderCustomHeadersCard();
-
-    //     // render the full security report
-    //     $securityReportDiv.empty();
-    //     if(Object.keys(securityDetails).length > 0){
-    //         const $securityReport = $('<pre>').addClass('json-container').append(prettyPrintJson.toHtml(securityDetails, {}));
-    //         $securityReportDiv.append($securityReport);
-    //     }else{
-    //         $securityReportDiv.append($('<div>').addClass('alert alert-danger').html('<i class="bi bi-exclamation-octagon-fill"></i> No Secrity/Spam Headers Found!'));
-    //     }
-
-    //     
 
     //     //
     //     // render the security summary

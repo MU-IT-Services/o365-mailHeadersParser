@@ -874,15 +874,19 @@ function parseMicrosoftAntiSpamHeader(input){
     optionalSingleHeader('Delivered-To');
     requireExactlyOne('Message-ID');
 
+    // look for the appropriate Exchange-specific headers
+    takeOne('X-MS-Exchange-Organization-Network-Message-Id');
+
     // look for the appropriate Microsoft-specific security headers
     takeOne('Authentication-Results');
+    takeOne('Authentication-Results-Original');
     takeOne('X-Forefront-Antispam-Report');
     takeOne('X-Microsoft-Antispam');
 
     // generate the security report based on the Microsoft headers
     ans.securityReport = {
         ...parseAuthResultHeader(ans.canonicalByID.authentication_results.value),
-    //    ...(headers.authentication_results_original ? parseOriginalAuthResultHeader(headers.authentication_results_original.value) : {}),
+        ...parseOriginalAuthResultHeader(ans.canonicalByID.authentication_results_original.value),
         ...parseForefrontSpamReportHeader(ans.canonicalByID.x_forefront_antispam_report.value),
         ...parseMicrosoftAntiSpamHeader(ans.canonicalByID.x_microsoft_antispam.value)
     };
