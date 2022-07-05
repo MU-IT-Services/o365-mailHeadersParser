@@ -63,6 +63,15 @@
                                             <div class="form-text">Optionally extract custom mail headers starting with this prefix.</div>
                                         </div>
                                         <div class="mb-3">
+                                            <div class="btn-group" role="group" aria-label="Parse as inbound/outbound radio button group">
+                                                <input type="radio" class="btn-check" name="parseAs-rbg" id="parseAs-rbg-inbound" value="inbound" autocomplete="off" checked>
+                                                <label class="btn btn-outline-primary" for="parseAs-rbg-inbound">Inbound</label>
+                                                <input type="radio" class="btn-check" name="parseAs-rbg" id="parseAs-rbg-outbound" value="outbound" autocomplete="off">
+                                                <label class="btn btn-outline-primary" for="parseAs-rbg-outbound">Outbound</label>
+                                              </div>
+                                            <div class="form-text">Should the headers be parsed as an in-coming or an out-going email?</div>
+                                        </div>
+                                        <div class="mb-3">
                                             <button type="button" id="process_btn" class="form-control btn btn-primary">
                                                 Process Headers
                                             </button>
@@ -77,6 +86,7 @@
                                     Output  
                                 </div>
                                 <div class="card-body">
+                                    <div id="parseAlerts_div"></div>
                                     <div class="card text-dark bg-light mb-3">
                                         <div class="card-header h4">
                                             Basics
@@ -168,6 +178,8 @@
     <script src=https://cdn.jsdelivr.net/npm/pretty-print-json@1.2/dist/pretty-print-json.min.js></script>
 
     <!-- Import our JS -->
+    <script src="./parser.js"></script>
+    <script src="./ui.js"></script>
     <script src="./index.js"></script>
 </body>
 </html>
